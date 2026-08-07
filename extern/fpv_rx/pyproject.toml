@@ -1,0 +1,9 @@
+[build-system]
+requires = ["setuptools>=64", "pybind11"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fpv-rx"
+version = "0.1.0"
+description = "FPV WFB-ng RTL8812AU receiver"
+requires-python = ">=3.8"

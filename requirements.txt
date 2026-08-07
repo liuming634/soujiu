@@ -1,0 +1,6 @@
+opencv-python-headless==5.0.0.93
+numpy==2.2.6
+PyQt5==5.15.6
+PyYAML==5.4.1
+pyserial==3.5
+pybind11>=2.10.0

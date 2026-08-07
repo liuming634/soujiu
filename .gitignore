@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+.venv/
+*.pyd
+*.so
+*.dll
+*.lib
+*.exp
+fpv4win/
+*.egg-info
