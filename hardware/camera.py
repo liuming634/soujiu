@@ -31,6 +31,7 @@ class CameraManager:
         self._last_reconnect_attempt = 0.0   # 上次重试时间戳
         self._reconnect_interval = 1.0       # 重试间隔（秒）
         self._last_log_time = 0.0            # 上次重连日志时间（防刷屏）
+        self._last_frame_size = (config.camera_height, config.camera_width)  # 最近一次成功帧尺寸 (h, w)
 
         # 集成畸变矫正器
         self._undistorter = Undistorter()
@@ -71,18 +72,21 @@ class CameraManager:
             self._last_log_time = now
 
     def _create_status_frame(self, message: str) -> np.ndarray:
-        """生成带状态文字的占位帧（无相机时在 GUI 上显示）"""
-        h, w = config.camera_fallback_height, config.camera_fallback_width
+        """生成带状态文字的占位帧（无相机时在 GUI 上显示，保持与实拍同分辨率）"""
+        h, w = self._last_frame_size
         frame = np.zeros((h, w, 3), dtype=np.uint8)
-        # 居中显示消息（橙色）
+        # 居中显示消息（橙色），字号随分辨率缩放
         font = cv2.FONT_HERSHEY_SIMPLEX
-        text_size = cv2.getTextSize(message, font, 0.8, 2)[0]
+        scale = max(0.8, min(2.5, w / 1280.0))
+        text_size = cv2.getTextSize(message, font, scale, 2)[0]
         tx = (w - text_size[0]) // 2
         ty = h // 2 - 10
-        cv2.putText(frame, message, (tx, ty), font, 0.8, (0, 165, 255), 2)
+        cv2.putText(frame, message, (tx, ty), font, scale, (0, 165, 255), 2)
         # 小提示
         hint = "Check camera connection"
-        cv2.putText(frame, hint, (w // 2 - 120, ty + 40), font, 0.5, (100, 100, 100), 1)
+        hint_size = cv2.getTextSize(hint, font, scale * 0.6, 1)[0]
+        cv2.putText(frame, hint, ((w - hint_size[0]) // 2, ty + int(40 * scale)),
+                    font, scale * 0.6, (100, 100, 100), 1)
         return frame
 
     # ─────── 摄像头初始化 ───────
@@ -163,6 +167,7 @@ class CameraManager:
                     print("✅ 摄像头已重新连接")
                     ret, frame = self._cap.read()
                     if ret and frame is not None:
+                        self._last_frame_size = frame.shape[:2]
                         return True, frame
                     # 重连后读帧仍然失败，重新标记断开
                     self._handle_disconnect()
@@ -184,6 +189,7 @@ class CameraManager:
                 self._reconnect_interval = 1.0  # 重置重试间隔
                 print("✅ 摄像头已恢复")
 
+            self._last_frame_size = frame.shape[:2]
             return True, frame
         except Exception as e:
             log_error(e, "读取摄像头帧失败")

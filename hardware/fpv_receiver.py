@@ -34,6 +34,7 @@ class FpvReceiver:
         self._last_valid_time = 0.0
         self._last_frame = None
         self._ever_connected = False
+        self._last_frame_size = (config.fpv_height, config.fpv_width)  # 最近一次成功帧尺寸 (h, w)
 
         # 与 USB 相机同一条链路：集成畸变矫正器
         self._undistorter = Undistorter()
@@ -68,6 +69,7 @@ class FpvReceiver:
             except Exception:
                 return False, self._status_frame("等待 FPV 信号...")
             self._last_frame = arr
+            self._last_frame_size = arr.shape[:2]
             self._last_valid_time = time.time()
             self._ever_connected = True
             if not self._connected:
@@ -112,13 +114,14 @@ class FpvReceiver:
 
     def _status_frame(self, message: str) -> np.ndarray:
         self._waiting_frame = None
-        h, w = 480, 640
+        h, w = self._last_frame_size
         frame = np.zeros((h, w, 3), dtype=np.uint8)
         font = cv2.FONT_HERSHEY_SIMPLEX
-        text_size = cv2.getTextSize(message, font, 0.8, 2)[0]
+        scale = max(0.8, min(2.5, w / 1280.0))
+        text_size = cv2.getTextSize(message, font, scale, 2)[0]
         tx = (w - text_size[0]) // 2
         ty = h // 2 - 10
-        cv2.putText(frame, message, (tx, ty), font, 0.8, (0, 165, 255), 2)
+        cv2.putText(frame, message, (tx, ty), font, scale, (0, 165, 255), 2)
         return frame
 
     def __del__(self):

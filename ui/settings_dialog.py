@@ -235,22 +235,28 @@ class SettingsDialog(QDialog):
         tab = QWidget()
         layout = QFormLayout(tab)
 
-        hint = QLabel("圆心/半径单位为原始图像像素。-1 表示自动居中，半径 0 表示不显示。")
+        hint = QLabel("圆心/半径为占画面宽高的比例（0~1），不随画面分辨率变化。半径 0 表示不显示。")
         hint.setStyleSheet("color: gray;")
         hint.setWordWrap(True)
         layout.addRow("", hint)
 
-        self.grab_x_spin = QSpinBox()
-        self.grab_x_spin.setRange(-1, 7680)
-        layout.addRow("圆心 X:", self.grab_x_spin)
+        self.grab_x_spin = QDoubleSpinBox()
+        self.grab_x_spin.setRange(0.0, 1.0)
+        self.grab_x_spin.setSingleStep(0.01)
+        self.grab_x_spin.setDecimals(3)
+        layout.addRow("圆心 X 比例:", self.grab_x_spin)
 
-        self.grab_y_spin = QSpinBox()
-        self.grab_y_spin.setRange(-1, 4320)
-        layout.addRow("圆心 Y:", self.grab_y_spin)
+        self.grab_y_spin = QDoubleSpinBox()
+        self.grab_y_spin.setRange(0.0, 1.0)
+        self.grab_y_spin.setSingleStep(0.01)
+        self.grab_y_spin.setDecimals(3)
+        layout.addRow("圆心 Y 比例:", self.grab_y_spin)
 
-        self.grab_r_spin = QSpinBox()
-        self.grab_r_spin.setRange(0, 5000)
-        layout.addRow("半径:", self.grab_r_spin)
+        self.grab_r_spin = QDoubleSpinBox()
+        self.grab_r_spin.setRange(0.0, 1.0)
+        self.grab_r_spin.setSingleStep(0.01)
+        self.grab_r_spin.setDecimals(3)
+        layout.addRow("半径比例(×宽):", self.grab_r_spin)
 
         self.tabs.addTab(tab, "抓取范围")
 
@@ -362,9 +368,9 @@ class SettingsDialog(QDialog):
         self.grid_crop_spin.setValue(config.grid_crop_ratio)
 
         # 抓取范围
-        self.grab_x_spin.setValue(config.grab_range_x)
-        self.grab_y_spin.setValue(config.grab_range_y)
-        self.grab_r_spin.setValue(config.grab_range_radius)
+        self.grab_x_spin.setValue(config.grab_range_x_ratio)
+        self.grab_y_spin.setValue(config.grab_range_y_ratio)
+        self.grab_r_spin.setValue(config.grab_range_radius_ratio)
 
     def _collect_values(self):
         """收集对话框中所有配置值，返回 dict"""
@@ -403,9 +409,9 @@ class SettingsDialog(QDialog):
             "fps_display": self.fps_check.isChecked(),
             "grid_crop_ratio": self.grid_crop_spin.value(),
             # 抓取范围
-            "grab_range_x": self.grab_x_spin.value(),
-            "grab_range_y": self.grab_y_spin.value(),
-            "grab_range_radius": self.grab_r_spin.value(),
+            "grab_range_x_ratio": self.grab_x_spin.value(),
+            "grab_range_y_ratio": self.grab_y_spin.value(),
+            "grab_range_radius_ratio": self.grab_r_spin.value(),
         }
 
     # ──────────────────────────── 事件处理 ────────────────────────────

@@ -38,7 +38,8 @@ class Config:
         "homography_file", "camera_matrix_file", "dist_coeffs_file",
         "timer_interval", "coordinate_scale", "coordinate_offset",
         "fps_display",
-        "grab_range_x", "grab_range_y", "grab_range_radius",
+        "grab_range_x_ratio", "grab_range_y_ratio", "grab_range_radius_ratio",
+        "show_overlays",
     }
 
     # Windows 盘符绝对路径，如 d:/code/...（在 Linux 上 os.path.isabs 判断为 False）
@@ -111,10 +112,13 @@ class Config:
         self.grid_crop_ratio = 1.0   # 格子截图裁剪比例
 
         # ── 抓取范围圆 (可视化) ──
-        # 圆心/半径单位为原始图像像素；-1 表示自动居中，半径 0 表示不显示
-        self.grab_range_x = -1
-        self.grab_range_y = -1
-        self.grab_range_radius = 0
+        # 圆心/半径存为占画面宽高的比例 (0~1)：画圆时按当前帧尺寸现场换算像素
+        self.grab_range_x_ratio = 0.5
+        self.grab_range_y_ratio = 0.5
+        self.grab_range_radius_ratio = 0.0
+
+        # 画面叠加线总开关：范围圆 + 十字准星（标定时可关闭，画面保持干净）
+        self.show_overlays = True
 
         # ── UI 预设列表 (七) ──
         self.resolution_presets = [
@@ -230,6 +234,16 @@ class Config:
                 data = yaml.safe_load(f)
             if data is None:
                 return
+            # 旧版像素抓取范围 → 按配置分辨率换算为比例（-1 自动居中 → 0.5）
+            if "grab_range_x" in data and "grab_range_x_ratio" not in data:
+                self.grab_range_x_ratio = self._px_to_ratio(
+                    data["grab_range_x"], data.get("camera_width", self.camera_width))
+            if "grab_range_y" in data and "grab_range_y_ratio" not in data:
+                self.grab_range_y_ratio = self._px_to_ratio(
+                    data["grab_range_y"], data.get("camera_height", self.camera_height))
+            if "grab_range_radius" in data and "grab_range_radius_ratio" not in data:
+                self.grab_range_radius_ratio = self._px_to_ratio(
+                    data["grab_range_radius"], data.get("camera_width", self.camera_width))
             for key, value in data.items():
                 if isinstance(value, dict):
                     print(f"  [INFO] 跳过旧格式段 '{key}'，下次保存后自动更新")
@@ -257,6 +271,17 @@ class Config:
             self._normalize_file_paths()
         except Exception as e:
             print(f"[WARNING] 加载配置文件失败: {e}，使用默认配置")
+
+    @staticmethod
+    def _px_to_ratio(px, ref_size) -> float:
+        """像素值 → 占画面比例 (0~1)；负值/无参考尺寸时回退 0.5"""
+        try:
+            px = float(px)
+        except (TypeError, ValueError):
+            return 0.5
+        if px < 0 or not ref_size or ref_size <= 0:
+            return 0.5
+        return max(0.0, min(1.0, px / float(ref_size)))
 
     def to_dict(self):
         """导出所有持久化配置项为字典"""
@@ -299,9 +324,10 @@ class Config:
         "timer_interval": lambda v: 10 <= v <= 1000,
         "coordinate_scale": lambda v: 1 <= v <= 100000,
         "coordinate_offset": lambda v: 0 <= v <= 99999,
-        "grab_range_x": lambda v: isinstance(v, int) and -1 <= v <= 7680,
-        "grab_range_y": lambda v: isinstance(v, int) and -1 <= v <= 4320,
-        "grab_range_radius": lambda v: isinstance(v, int) and 0 <= v <= 5000,
+        "grab_range_x_ratio": lambda v: isinstance(v, (int, float)) and 0.0 <= v <= 1.0,
+        "grab_range_y_ratio": lambda v: isinstance(v, (int, float)) and 0.0 <= v <= 1.0,
+        "grab_range_radius_ratio": lambda v: isinstance(v, (int, float)) and 0.0 <= v <= 1.0,
+        "show_overlays": lambda v: isinstance(v, bool),
     }
 
     def validate_param(self, key: str, value) -> bool:

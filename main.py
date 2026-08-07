@@ -273,7 +273,9 @@ class VisionFramework:
         try:
             if self.camera is None:
                 # 无摄像头对象（start 未调用）
-                blank = np.zeros((config.camera_fallback_height, config.camera_fallback_width, 3), dtype=np.uint8)
+                bw = getattr(self.display, 'original_width', 0) or config.camera_width
+                bh = getattr(self.display, 'original_height', 0) or config.camera_height
+                blank = np.zeros((bh, bw, 3), dtype=np.uint8)
                 cv2.putText(blank, "No Camera", (160, 200),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.5, (100, 100, 100), 3)
                 self.data.camera_connected = False

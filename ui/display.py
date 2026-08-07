@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout,
                              QHBoxLayout, QPushButton, QGridLayout,
-                             QSizePolicy, QDialog, QSlider)
+                             QSizePolicy, QDialog, QSlider, QCheckBox)
 from PyQt5.QtCore import Qt, QRect, QPoint, QTimer
 from PyQt5.QtGui import QImage, QPixmap, QFont, QIcon, QPainter, QPen, QColor
 from core.config import config
@@ -93,6 +93,13 @@ class GrabRangeBar(QWidget):
         layout.setSpacing(6)
 
         self.value_labels = {}
+
+        # 叠加线总开关（范围圆 + 十字准星），供标定时关闭保持画面干净
+        self.show_checkbox = QCheckBox("范围圆")
+        self.show_checkbox.setToolTip("显示/隐藏 范围圆与十字准星（标定时建议关闭）")
+        self.show_checkbox.setStyleSheet("color: #ddd; font-size: 12px;")
+        layout.addWidget(self.show_checkbox)
+
         for key, text in (("x", "X原点"), ("y", "Y原点"), ("r", "半径")):
             lbl = QLabel(text)
             lbl.setStyleSheet("color: #bbb; font-size: 12px;")
@@ -256,6 +263,10 @@ class VideoDisplay(QWidget):
         self.grab_bar.y_slider.sliderReleased.connect(self._save_grab_config)
         self.grab_bar.r_slider.sliderReleased.connect(self._save_grab_config)
         self._last_grab_size = None
+        self._syncing_sliders = False
+        self._show_overlays = config.show_overlays
+        self.grab_bar.show_checkbox.setChecked(self._show_overlays)
+        self.grab_bar.show_checkbox.toggled.connect(self._on_toggle_overlays)
 
         # 顶部状态栏 + 下方画面显示区（独立，互不重叠）
         right_layout.addWidget(self.status_container)
@@ -386,6 +397,9 @@ class VideoDisplay(QWidget):
             cam_h, cam_w = frame.shape[:2]
             self.original_height, self.original_width = cam_h, cam_w
 
+            # 在副本上绘制叠加线，保证传入帧（data.current_frame）始终干净
+            frame = frame.copy()
+
             # 抓取范围圆：缩放前在原始分辨率上绘制（圆心/半径与滑块、鼠标同坐标空间）
             self._draw_grab_range(frame)
             self._update_grab_ranges(cam_w, cam_h)
@@ -468,6 +482,8 @@ class VideoDisplay(QWidget):
         画一条竖直线和一条水平线贯穿图像中心。
         颜色：亮绿色 (BGR)。
         """
+        if not self._show_overlays:
+            return
         if frame is None or frame.size == 0:
             return
         h, w = frame.shape[:2]
@@ -485,22 +501,22 @@ class VideoDisplay(QWidget):
         """
         在原图上绘制抓取范围圆（细线圆环 + 圆心点）
 
-        圆心/半径单位均为原始图像像素；圆超出画面范围的部分由 cv2.circle
-        在数组边界处自动裁剪，只显示画面内的弧段（天然不连续处理）。
+        圆心/半径按配置比例 × 当前帧尺寸现场换算为像素，因此分辨率变化
+        或断线占位帧都不影响圆的相对位置/大小。圆超出画面范围的部分由
+        cv2.circle 在数组边界处自动裁剪，只显示画面内的弧段。
         """
+        if not self._show_overlays:
+            return
         try:
-            cx, cy = config.grab_range_x, config.grab_range_y
-            r = config.grab_range_radius
+            h, w = frame.shape[:2]
+            cx = int(round(config.grab_range_x_ratio * (w - 1)))
+            cy = int(round(config.grab_range_y_ratio * (h - 1)))
+            r = int(round(config.grab_range_radius_ratio * w))
             if r <= 0:
                 return
-            h, w = frame.shape[:2]
-            if cx < 0:
-                cx = w // 2
-            if cy < 0:
-                cy = h // 2
             color = (255, 255, 255)  # 白色 BGR
-            cv2.circle(frame, (int(cx), int(cy)), int(r), color, 1)
-            cv2.circle(frame, (int(cx), int(cy)), 3, color, -1)
+            cv2.circle(frame, (cx, cy), r, color, 1)
+            cv2.circle(frame, (cx, cy), 3, color, -1)
         except Exception as e:
             log_error(e, "绘制抓取范围失败")
 
@@ -512,27 +528,40 @@ class VideoDisplay(QWidget):
 
         self.grab_bar.x_slider.setRange(0, max(1, w - 1))
         self.grab_bar.y_slider.setRange(0, max(1, h - 1))
-        self.grab_bar.r_slider.setRange(0, max(w, h))
+        self.grab_bar.r_slider.setRange(0, max(1, w))
 
-        # -1 哨兵 → 自动居中；半径 0 → 不显示
-        cx = w // 2 if config.grab_range_x < 0 else min(config.grab_range_x, w - 1)
-        cy = h // 2 if config.grab_range_y < 0 else min(config.grab_range_y, h - 1)
-        r = min(config.grab_range_radius, max(w, h))
+        # 配置比例 × 当前帧尺寸 → 滑块像素值
+        cx = int(round(config.grab_range_x_ratio * (w - 1)))
+        cy = int(round(config.grab_range_y_ratio * (h - 1)))
+        r = int(round(config.grab_range_radius_ratio * w))
 
-        self.grab_bar.x_slider.setValue(cx)
-        self.grab_bar.y_slider.setValue(cy)
-        self.grab_bar.r_slider.setValue(r)
+        self._syncing_sliders = True
+        try:
+            self.grab_bar.x_slider.setValue(cx)
+            self.grab_bar.y_slider.setValue(cy)
+            self.grab_bar.r_slider.setValue(r)
+        finally:
+            self._syncing_sliders = False
         self.grab_bar.update_value_labels(cx, cy, r)
 
     def _on_grab_slider(self, key, value):
-        """滑块移动 → 实时更新配置与数值显示"""
+        """滑块移动 → 像素换算为比例写入配置（程序同步时跳过）"""
+        if self._syncing_sliders:
+            return
         self.grab_bar.value_labels[key].setText(str(value))
         if key == "x":
-            config.grab_range_x = value
+            config.grab_range_x_ratio = self._px_to_ratio(value, self.original_width)
         elif key == "y":
-            config.grab_range_y = value
+            config.grab_range_y_ratio = self._px_to_ratio(value, self.original_height)
         else:
-            config.grab_range_radius = value
+            config.grab_range_radius_ratio = self._px_to_ratio(value, self.original_width)
+
+    @staticmethod
+    def _px_to_ratio(px, size):
+        """像素值 → 占画面比例 (0~1)；无参考尺寸时保持原值"""
+        if not size or size <= 0:
+            return 0.5
+        return max(0.0, min(1.0, px / float(size)))
 
     def _save_grab_config(self):
         """滑块松开 → 持久化一次到 camera_params.yaml"""
@@ -540,6 +569,15 @@ class VideoDisplay(QWidget):
             config.save_to_yaml(config.resolve_path("camera_params.yaml"))
         except Exception as e:
             log_error(e, "保存抓取范围配置失败")
+
+    def _on_toggle_overlays(self, checked):
+        """范围圆/十字准星 开关 → 立即生效并持久化"""
+        self._show_overlays = checked
+        config.show_overlays = checked
+        try:
+            config.save_to_yaml(config.resolve_path("camera_params.yaml"))
+        except Exception as e:
+            log_error(e, "保存叠加线开关配置失败")
 
     def _get_image_coordinates(self, event):
         """

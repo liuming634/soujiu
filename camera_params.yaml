@@ -1,7 +1,7 @@
 camera_fourcc: MJPG
 camera_fps: 30
 camera_height: 1080
-camera_id: 0
+camera_id: 4
 camera_matrix_file: calibration_data/camera_matrix.npy
 camera_source: usb
 camera_width: 1920
@@ -17,13 +17,14 @@ fpv_height: 1080
 fpv_key: gs.key
 fpv_link_id: 7669206
 fpv_width: 1920
-grab_range_radius: 973
-grab_range_x: 960
-grab_range_y: 745
+grab_range_radius_ratio: 0.486
+grab_range_x_ratio: 0.5
+grab_range_y_ratio: 0.647
 grid_crop_ratio: 1.0
 homography_file: calibration_data/homography.npy
 serial_baudrate: 9600
 serial_port: /dev/ttyUSB0
 serial_prefix: 4660
 serial_timeout: 0.1
+show_overlays: true
 timer_interval: 30
