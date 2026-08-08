@@ -67,6 +67,7 @@ class FieldDiagram(QWidget):
             p.drawLine(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1])
 
         # 编号圆圈
+        nums = [1, 3, 5, 6, 4, 2]
         font = QFont("Monospace", 8)
         p.setFont(font)
         for i, (x, y) in enumerate(pts):
@@ -74,7 +75,7 @@ class FieldDiagram(QWidget):
             p.setPen(QPen(QColor(180, 180, 180), 1))
             p.drawEllipse(x - 8, y - 8, 16, 16)
             p.setPen(QColor(180, 180, 180))
-            p.drawText(x - 4, y + 4, str(i + 1))
+            p.drawText(x - 4, y + 4, str(nums[i]))
 
         # 底部 "飞手"
         p.setPen(QColor(140, 140, 140))
@@ -778,7 +779,7 @@ class VideoDisplay(QWidget):
         sent_part = "  ".join(sent_lines) if sent_lines else state.last_sent_text
         sent_part = re.sub(r'(\d+)', r"<span style='color:#ff6666'>\1</span>", sent_part)
         line4 = "⌨ [左]设参考点 [右]查坐标 [格1~3]截画面 [0-9]打包 [空格]发"
-        line5 = "[1]抓球 [2]抓方 [3]放球 [4]放魔方 [5]旋180°"
+        line5 = "[1]抓球 [2]抓方 [3]指定地点放 [4]直接放 [5]旋180°"
         sep = "<br>"
         if flash:
             text = f"{flash}{sep}{line1}{sep}{line2}{sep}{sent_part}{sep}{line4}{sep}{line5}"
