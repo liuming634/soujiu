@@ -66,8 +66,8 @@ class FieldDiagram(QWidget):
         for i in range(len(pts) - 1):
             p.drawLine(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1])
 
-        # 编号圆圈
-        nums = [1, 3, 5, 6, 4, 2]
+        # 编号圆圈（编号随 GUI 模式预设切换）
+        nums = config.GUI_PRESETS[config.gui_mode]["field_nums"]
         font = QFont("Monospace", 8)
         p.setFont(font)
         for i, (x, y) in enumerate(pts):
@@ -160,24 +160,23 @@ class VideoDisplay(QWidget):
         self.button_widget.setFixedWidth(config.gui_button_panel_width)
         main_layout.addWidget(self.button_widget)
 
-        # ---------- 3×1 截图格子区域 ----------
-        self.grid_widget = QWidget()
-        grid_layout = QGridLayout()
-        grid_layout.setSpacing(4)
-        grid_layout.setContentsMargins(0, 0, 0, 0)
-        self.grid_widget.setLayout(grid_layout)
+        # ---------- 截图格子区域（随 GUI 模式整体切换） ----------
+        self.mode_btn = QPushButton()
+        self.mode_btn.setFixedHeight(28)
+        self.mode_btn.setStyleSheet(
+            "font-size: 12px; background-color: #333; color: #ddd; border: 1px solid #666;"
+        )
+        self.mode_btn.clicked.connect(self._toggle_grid_mode)
+        self.button_layout.addWidget(self.mode_btn)
 
-        bw = config.gui_button_panel_width - 4
-        bh = bw * 9 // 16
+        self.grid_widget = QWidget()
+        self.grid_layout = QGridLayout()
+        self.grid_layout.setSpacing(4)
+        self.grid_layout.setContentsMargins(0, 0, 0, 0)
+        self.grid_widget.setLayout(self.grid_layout)
+
         self.grid_buttons = []
-        for row in range(config.gui_grid_rows):
-            for col in range(config.gui_grid_cols):
-                btn = QPushButton(f"{row + 1}")
-                btn.setFixedSize(bw, bh)
-                btn.setStyleSheet("background-color: #555; border: 2px solid #888; color: white; font-size: 16px;")
-                btn.clicked.connect(lambda checked, r=row, c=col: self._on_grid_click(r, c))
-                grid_layout.addWidget(btn, row, col)
-                self.grid_buttons.append(btn)
+        self._build_grid()
 
         self.button_layout.addWidget(self.grid_widget)
 
@@ -450,7 +449,7 @@ class VideoDisplay(QWidget):
         """根据视频尺寸调整窗口大小"""
         margins = self.layout().contentsMargins()
         spacing = self.layout().spacing()
-        button_width = self.button_widget.width()
+        button_width = config.gui_button_panel_width
 
         # 右侧视频等比压缩到最大显示宽度（画面不拉伸变形）
         if video_width > config.gui_video_max_width:
@@ -662,6 +661,52 @@ class VideoDisplay(QWidget):
     def set_grid_click_callback(self, callback):
         """设置格子点击回调: callback(row, col)"""
         self.grid_click_callback = callback
+
+    def _build_grid(self):
+        """按当前 gui_mode 预设重建截图格子 + 刷新路线图编号"""
+        preset = config.GUI_PRESETS[config.gui_mode]
+        config.gui_button_panel_width = preset["gui_button_panel_width"]
+        config.gui_grid_rows = preset["gui_grid_rows"]
+        config.gui_grid_cols = preset["gui_grid_cols"]
+
+        for btn in self.grid_buttons:
+            self.grid_layout.removeWidget(btn)
+            btn.deleteLater()
+        self.grid_buttons = []
+
+        self.button_widget.setFixedWidth(config.gui_button_panel_width)
+
+        bw = config.gui_button_panel_width - 4
+        bh = bw * 9 // 16
+        for row in range(config.gui_grid_rows):
+            for col in range(config.gui_grid_cols):
+                btn = QPushButton(f"{row + 1}")
+                btn.setFixedSize(bw, bh)
+                btn.setStyleSheet(
+                    "background-color: #555; border: 2px solid #888; color: white; font-size: 16px;"
+                )
+                btn.clicked.connect(lambda checked, r=row, c=col: self._on_grid_click(r, c))
+                self.grid_layout.addWidget(btn, row, col)
+                self.grid_buttons.append(btn)
+
+        self._update_mode_button()
+        if getattr(self, "field_diagram", None):
+            self.field_diagram.update()
+
+    def _update_mode_button(self):
+        """更新模式切换按钮文字（显示将切换到的模式）"""
+        self.mode_btn.setText("→ 六格模式" if config.gui_mode == "3" else "→ 三格模式")
+
+    def _toggle_grid_mode(self):
+        """切换三格/六格 GUI 模式：重建格子 + 刷新路线图 + 持久化 + 重算窗口"""
+        config.gui_mode = "6" if config.gui_mode == "3" else "3"
+        self._build_grid()
+        try:
+            config.save_to_yaml(config.resolve_path("camera_params.yaml"))
+        except Exception as e:
+            log_error(e, "保存 GUI 模式失败")
+        if self.original_width and self.original_height:
+            self._adjust_window_size(self.original_width, self.original_height)
 
     def _on_grid_click(self, row, col):
         """格子按钮被点击"""

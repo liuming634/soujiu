@@ -40,6 +40,7 @@ class Config:
         "fps_display",
         "grab_range_x_ratio", "grab_range_y_ratio", "grab_range_radius_ratio",
         "show_overlays",
+        "gui_mode",
     }
 
     # Windows 盘符绝对路径，如 d:/code/...（在 Linux 上 os.path.isabs 判断为 False）
@@ -110,6 +111,15 @@ class Config:
         self.gui_grid_cols = 1
         self.gui_video_max_width = 1600   # 右侧视频显示最大宽度
         self.grid_crop_ratio = 1.0   # 格子截图裁剪比例
+        self.gui_mode = "3"          # GUI 模式: "3" 三格大图 / "6" 六格小图
+
+        # 两套 GUI 模式预设（截图格布局 + 飞手路线编号 成对整体切换）
+        self.GUI_PRESETS = {
+            "3": {"gui_button_panel_width": 800, "gui_grid_rows": 3,
+                  "gui_grid_cols": 1, "field_nums": [1, 3, 5, 6, 4, 2]},
+            "6": {"gui_button_panel_width": 400, "gui_grid_rows": 6,
+                  "gui_grid_cols": 1, "field_nums": [1, 2, 3, 4, 5, 6]},
+        }
 
         # ── 抓取范围圆 (可视化) ──
         # 圆心/半径存为占画面宽高的比例 (0~1)：画圆时按当前帧尺寸现场换算像素
@@ -328,6 +338,7 @@ class Config:
         "grab_range_y_ratio": lambda v: isinstance(v, (int, float)) and 0.0 <= v <= 1.0,
         "grab_range_radius_ratio": lambda v: isinstance(v, (int, float)) and 0.0 <= v <= 1.0,
         "show_overlays": lambda v: isinstance(v, bool),
+        "gui_mode": lambda v: v in ("3", "6"),
     }
 
     def validate_param(self, key: str, value) -> bool:
