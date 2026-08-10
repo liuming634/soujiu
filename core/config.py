@@ -33,6 +33,7 @@ class Config:
         "serial_port", "serial_baudrate", "serial_timeout", "serial_prefix",
         "camera_id", "camera_width", "camera_height",
         "camera_fps", "camera_fourcc", "grid_crop_ratio",
+        "camera_vflip", "camera_hflip",
         "camera_source", "fpv_channel", "fpv_channel_width", "fpv_key", "fpv_link_id",
         "fpv_codec", "fpv_width", "fpv_height", "fpv_fps",
         "homography_file", "camera_matrix_file", "dist_coeffs_file",
@@ -71,9 +72,13 @@ class Config:
         if self.is_windows:
             self.serial_port = "COM10"
             self.camera_id = 0  # Windows 默认摄像头
+            self.camera_vflip = True   # Windows 下采集卡画面上下翻转，需修正
+            self.camera_hflip = False
         else:
             self.serial_port = "/dev/ttyUSB0"
             self.camera_id = 0  # Ubuntu USB相机
+            self.camera_vflip = False
+            self.camera_hflip = False
 
         self.serial_baudrate = 9600
         self.serial_timeout = 0.1

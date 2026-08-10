@@ -109,6 +109,15 @@ class SettingsDialog(QDialog):
         self.camera_fourcc_combo.addItem("YUYV", "YUYV")
         layout.addRow("USB 编码:", self.camera_fourcc_combo)
 
+        # ── 画面方向修正 ──
+        flip_layout = QHBoxLayout()
+        self.camera_vflip_check = QCheckBox("上下翻转")
+        self.camera_hflip_check = QCheckBox("左右翻转")
+        flip_layout.addWidget(self.camera_vflip_check)
+        flip_layout.addWidget(self.camera_hflip_check)
+        flip_layout.addStretch(1)
+        layout.addRow("画面方向:", flip_layout)
+
         # ── FPV 参数 ──
         sep = QLabel("──── FPV 图传参数 ────")
         sep.setStyleSheet("color: gray;")
@@ -322,6 +331,8 @@ class SettingsDialog(QDialog):
         fourcc_idx = self.camera_fourcc_combo.findData(config.camera_fourcc)
         if fourcc_idx >= 0:
             self.camera_fourcc_combo.setCurrentIndex(fourcc_idx)
+        self.camera_vflip_check.setChecked(config.camera_vflip)
+        self.camera_hflip_check.setChecked(config.camera_hflip)
 
         # FPV
         self.fpv_channel_spin.setValue(config.fpv_channel)
@@ -383,6 +394,8 @@ class SettingsDialog(QDialog):
             "camera_height": self.cam_h_spin.value(),
             "camera_fps": self.camera_fps_spin.value(),
             "camera_fourcc": self.camera_fourcc_combo.currentData(),
+            "camera_vflip": self.camera_vflip_check.isChecked(),
+            "camera_hflip": self.camera_hflip_check.isChecked(),
             # FPV
             "fpv_channel": self.fpv_channel_spin.value(),
             "fpv_channel_width": self.fpv_cw_combo.currentData(),

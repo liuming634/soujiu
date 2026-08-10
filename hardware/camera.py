@@ -104,9 +104,19 @@ class CameraManager:
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         cap.set(cv2.CAP_PROP_FPS, config.camera_fps)
 
-        # 读一帧验证格式是否真正生效
-        ret, _ = cap.read()
-        if not ret:
+        # 预热重试：采集卡打开后首帧常为空缓冲，需等几帧才有有效数据
+        got_frame = False
+        for _ in range(10):
+            try:
+                ret, frame = cap.read()
+            except cv2.error:
+                ret, frame = False, None
+            if ret and frame is not None and frame.size > 0:
+                got_frame = True
+                break
+            time.sleep(0.3)
+
+        if not got_frame:
             cap.release()
             return None
 
@@ -149,6 +159,16 @@ class CameraManager:
 
     # ─────── 帧采集（集成去畸变 + 断线重连） ───────
 
+    def _apply_orientation(self, frame):
+        """按配置对原始帧做方向修正（上下/左右翻转，GUI 按钮实时切换）"""
+        if frame is None or frame.size == 0:
+            return frame
+        if config.camera_vflip:
+            frame = cv2.flip(frame, 0)
+        if config.camera_hflip:
+            frame = cv2.flip(frame, 1)
+        return frame
+
     def read_frame(self):
         """
         读取一帧原始图像（内部自动处理断线重连）
@@ -168,7 +188,7 @@ class CameraManager:
                     ret, frame = self._cap.read()
                     if ret and frame is not None:
                         self._last_frame_size = frame.shape[:2]
-                        return True, frame
+                        return True, self._apply_orientation(frame)
                     # 重连后读帧仍然失败，重新标记断开
                     self._handle_disconnect()
                 else:
@@ -190,7 +210,7 @@ class CameraManager:
                 print("✅ 摄像头已恢复")
 
             self._last_frame_size = frame.shape[:2]
-            return True, frame
+            return True, self._apply_orientation(frame)
         except Exception as e:
             log_error(e, "读取摄像头帧失败")
             self._handle_disconnect()

@@ -1,9 +1,11 @@
 camera_fourcc: MJPG
 camera_fps: 30
 camera_height: 1080
+camera_hflip: false
 camera_id: 0
 camera_matrix_file: calibration_data/camera_matrix.npy
 camera_source: usb
+camera_vflip: false
 camera_width: 1920
 coordinate_offset: 5000
 coordinate_scale: 1000
@@ -21,7 +23,7 @@ grab_range_radius_ratio: 0.486
 grab_range_x_ratio: 0.5
 grab_range_y_ratio: 0.647
 grid_crop_ratio: 1.0
-gui_mode: '6'
+gui_mode: '3'
 homography_file: calibration_data/homography.npy
 serial_baudrate: 9600
 serial_port: /dev/ttyUSB0
