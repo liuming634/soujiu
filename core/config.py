@@ -42,6 +42,7 @@ class Config:
         "grab_range_x_ratio", "grab_range_y_ratio", "grab_range_radius_ratio",
         "show_overlays",
         "gui_mode",
+        "coord_offset_x_mm", "coord_offset_y_mm",
     }
 
     # Windows 盘符绝对路径，如 d:/code/...（在 Linux 上 os.path.isabs 判断为 False）
@@ -134,6 +135,12 @@ class Config:
 
         # 画面叠加线总开关：范围圆 + 十字准星（标定时可关闭，画面保持干净）
         self.show_overlays = True
+
+        # ── 坐标偏差修正 (mm) ──
+        # 叠加到映射后的平面坐标上，用于修正机构/安装的系统性偏差。
+        # 正值方向：X 向右为正、Y 向上为正（与画面直角坐标系一致）。
+        self.coord_offset_x_mm = 0.0
+        self.coord_offset_y_mm = 0.0
 
         # ── UI 预设列表 (七) ──
         self.resolution_presets = [
@@ -344,6 +351,8 @@ class Config:
         "grab_range_radius_ratio": lambda v: isinstance(v, (int, float)) and 0.0 <= v <= 1.0,
         "show_overlays": lambda v: isinstance(v, bool),
         "gui_mode": lambda v: v in ("3", "6"),
+        "coord_offset_x_mm": lambda v: isinstance(v, (int, float)) and -10000.0 <= v <= 10000.0,
+        "coord_offset_y_mm": lambda v: isinstance(v, (int, float)) and -10000.0 <= v <= 10000.0,
     }
 
     def validate_param(self, key: str, value) -> bool:

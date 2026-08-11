@@ -7,6 +7,8 @@ camera_matrix_file: calibration_data/camera_matrix.npy
 camera_source: usb
 camera_vflip: false
 camera_width: 1920
+coord_offset_x_mm: 0.0
+coord_offset_y_mm: 0.0
 coordinate_offset: 5000
 coordinate_scale: 1000
 dist_coeffs_file: calibration_data/dist_coeffs.npy

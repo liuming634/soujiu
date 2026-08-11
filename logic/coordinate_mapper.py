@@ -152,6 +152,10 @@ class PixelToPlaneMapper:
                     if (v < cy and y < 0) or (v > cy and y > 0):
                         y = -y
 
+            # ── 偏差修正（mm → m，叠加到平面坐标上） ──
+            x += config.coord_offset_x_mm / 1000.0
+            y += config.coord_offset_y_mm / 1000.0
+
             return x, y
 
         except Exception as e:

@@ -7,7 +7,8 @@ import cv2
 import numpy as np
 from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout,
                              QHBoxLayout, QPushButton, QGridLayout,
-                             QSizePolicy, QDialog, QSlider, QCheckBox)
+                             QSizePolicy, QDialog, QSlider, QCheckBox,
+                             QDoubleSpinBox)
 from PyQt5.QtCore import Qt, QRect, QPoint, QTimer
 from PyQt5.QtGui import QImage, QPixmap, QFont, QIcon, QPainter, QPen, QColor
 from core.config import config
@@ -278,6 +279,9 @@ class VideoDisplay(QWidget):
         self.label.setAlignment(Qt.AlignCenter)
         self.label.setStyleSheet("background-color: black;")
         right_layout.addWidget(self.label, 1)
+
+        # ── 偏差修正输入框（叠加在视频画面左上角，实时生效并持久化） ──
+        self._create_offset_inputs()
 
         main_layout.addWidget(self.right_panel, 1)
 
@@ -570,6 +574,76 @@ class VideoDisplay(QWidget):
         except Exception as e:
             log_error(e, "保存抓取范围配置失败")
 
+    # ─────── 偏差修正输入框（叠加在视频画面左上角，累加模式） ───────
+
+    def _create_offset_inputs(self):
+        """在视频画面左上角叠加偏差修正输入框（累加模式）
+
+        - 左侧标签实时显示当前已加载的总偏差（mm，只读）
+        - 右侧两个输入框输入的是「增量」：回车/失焦/点箭头后累加到总偏差，
+          输入框自动清零，下次输入仍为增量，并即时持久化到 YAML。
+        - 坐标映射器每次调用实时读取 config，累加后下一次点击立即生效。
+        """
+        overlay = QWidget(self.label)
+        layout = QHBoxLayout(overlay)
+        layout.setContentsMargins(6, 4, 6, 4)
+        layout.setSpacing(4)
+
+        # 当前已加载总偏差（只读显示）
+        self.offset_total_label = QLabel()
+        self.offset_total_label.setStyleSheet(
+            "color: #ffcc66; font-size: 12px; font-weight: bold; background: transparent;")
+        layout.addWidget(self.offset_total_label)
+
+        spin_style = (
+            "QDoubleSpinBox { background-color: rgba(0,0,0,160); color: #ffcc66;"
+            " border: 1px solid #555; border-radius: 3px; font-size: 12px;"
+            " padding: 1px 2px; }"
+        )
+
+        for text, key in (("X", "coord_offset_x_mm"), ("Y", "coord_offset_y_mm")):
+            lbl = QLabel(text)
+            lbl.setStyleSheet("color: #ddd; font-size: 12px; background: transparent;")
+            layout.addWidget(lbl)
+
+            spin = QDoubleSpinBox()
+            spin.setRange(-10000.0, 10000.0)
+            spin.setDecimals(2)
+            spin.setSingleStep(1.0)
+            spin.setFixedWidth(80)
+            spin.setFixedHeight(22)
+            spin.setStyleSheet(spin_style)
+            spin.setToolTip("输入增量(mm)，回车/失焦/点箭头后累加到当前偏差")
+            # 关闭键盘追踪：输入过程中不触发，回车/失焦/箭头时才提交一次
+            spin.setKeyboardTracking(False)
+            spin.valueChanged.connect(
+                lambda v, s=spin, k=key: self._apply_offset_delta(s, k))
+            layout.addWidget(spin)
+
+            setattr(self, f"offset_{text.lower()}_edit", spin)
+
+        overlay.move(8, 8)
+        self._sync_offset_total()
+
+    def _sync_offset_total(self):
+        """把当前已加载的总偏差刷新到标签（只读显示）"""
+        self.offset_total_label.setText(
+            f"偏差 X={config.coord_offset_x_mm:.2f} Y={config.coord_offset_y_mm:.2f} mm")
+        self._offset_total_shown = (config.coord_offset_x_mm, config.coord_offset_y_mm)
+
+    def _apply_offset_delta(self, spin, key):
+        """输入框提交 → 增量累加到已加载总值，清零输入框并持久化"""
+        delta = spin.value()
+        spin.setValue(0.0)  # 累加后清零，下次输入仍为增量
+        if delta == 0.0:
+            return
+        setattr(config, key, getattr(config, key) + delta)
+        self._sync_offset_total()
+        try:
+            config.save_to_yaml(config.resolve_path("camera_params.yaml"))
+        except Exception as e:
+            log_error(e, "保存偏差修正配置失败")
+
     def _on_toggle_overlays(self, checked):
         """范围圆/十字准星 开关 → 立即生效并持久化"""
         self._show_overlays = checked
@@ -830,4 +904,8 @@ class VideoDisplay(QWidget):
             text = f"{flash}{sep}{line1}{sep}{line2}{sep}{sent_part}{sep}{line4}{sep}{line5}"
         else:
             text = f"{line1}{sep}{line2}{sep}{sent_part}{sep}{line4}{sep}{line5}"
+        # 偏差总值标签与外部修改（设置对话框/重启）保持同步
+        cur_off = (config.coord_offset_x_mm, config.coord_offset_y_mm)
+        if cur_off != self._offset_total_shown:
+            self._sync_offset_total()
         self.status_bar.setText(text)
