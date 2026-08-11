@@ -122,14 +122,17 @@ class InteractionManager:
         x_world, y_world = self.data.rotated_plane_coords
         print(f"   📌 参考点世界坐标: X={x_world:.4f}m, Y={y_world:.4f}m")
 
-        # 计算协议值
+        # 计算协议值：映射坐标(米) → 毫米，偏差修正(mm)直接叠加在发送数据上
         scale, offset = config.coordinate_scale, config.coordinate_offset
-        x_proto = max(0, min(config.protocol_max_value, int(round(x_world * scale + offset))))
-        y_proto = max(0, min(config.protocol_max_value, int(round(y_world * scale + offset))))
+        x_proto = int(round(x_world * scale + offset + config.coord_offset_x_mm))
+        y_proto = int(round(y_world * scale + offset + config.coord_offset_y_mm))
+        x_proto = max(0, min(config.protocol_max_value, x_proto))
+        y_proto = max(0, min(config.protocol_max_value, y_proto))
 
-        # 右键 X 协议值（同X编码方式）
+        # 右键 X 协议值（同X编码方式，同样叠加 X 偏差）
         rx, _ = self.data.right_click_coords
-        rx_proto = max(0, min(config.protocol_max_value, int(round(rx * scale + offset))))
+        rx_proto = int(round(rx * scale + offset + config.coord_offset_x_mm))
+        rx_proto = max(0, min(config.protocol_max_value, rx_proto))
 
         # 缓存待发送数据（不立即发送）
         self.data.set_pending_proto(x_proto, y_proto, n, rx_proto)

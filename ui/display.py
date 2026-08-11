@@ -613,7 +613,7 @@ class VideoDisplay(QWidget):
             spin.setFixedWidth(80)
             spin.setFixedHeight(22)
             spin.setStyleSheet(spin_style)
-            spin.setToolTip("输入增量(mm)，回车/失焦/点箭头后累加到当前偏差")
+            spin.setToolTip("输入增量(mm)，回车/失焦/点箭头后累加到发送数据的偏差")
             # 关闭键盘追踪：输入过程中不触发，回车/失焦/箭头时才提交一次
             spin.setKeyboardTracking(False)
             spin.valueChanged.connect(

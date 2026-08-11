@@ -152,10 +152,10 @@ class PixelToPlaneMapper:
                     if (v < cy and y < 0) or (v > cy and y > 0):
                         y = -y
 
-            # ── 偏差修正（mm → m，叠加到平面坐标上） ──
-            x += config.coord_offset_x_mm / 1000.0
-            y += config.coord_offset_y_mm / 1000.0
-
+            # 注意：偏差修正不在这里叠加。
+            # 映射输出为米，而协议发送数据为毫米，偏差修正直接以 mm
+            # 加到发送数据上（见 InteractionManager.handle_key），
+            # 避免米/毫米二次换算。
             return x, y
 
         except Exception as e:
