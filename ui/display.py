@@ -434,11 +434,16 @@ class VideoDisplay(QWidget):
             log_error(e, "更新视频帧失败")
 
     def _bgr_to_pixmap(self, frame, w=None, h=None):
-        """BGR numpy 帧 → QPixmap（画面显示/格子图标/ROI 预览共用）"""
+        """BGR numpy 帧 → QPixmap（画面显示/格子图标/ROI 预览共用）
+
+        注意：必须用 rgb.data（零拷贝 memoryview）而非 rgb.tobytes()，
+        tobytes() 每帧多一次整帧拷贝会严重拖低帧率（实测 0.7ms → 15ms）。
+        QPixmap.fromImage 会复制像素，QImage 引用 numpy 缓冲区是安全的。
+        """
         if w is None or h is None:
             h, w = frame.shape[:2]
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        qimage = QImage(rgb.tobytes(), w, h, 3 * w, QImage.Format_RGB888)
+        qimage = QImage(rgb.data, w, h, 3 * w, QImage.Format_RGB888)
         return QPixmap.fromImage(qimage)
 
     def _adjust_window_size(self, video_width, video_height):
