@@ -69,9 +69,7 @@ class InteractionManager:
 
         # 检查标定状态
         if self.mapper is None:
-            warn = "标定未就绪，请先标定映射"
-            print(f"  {_WARN_COLOR}[WARNING] {warn}{_WARN_RESET}")
-            self._flash_warning = warn
+            self._warn("标定未就绪，请先标定映射")
             return
 
         # 坐标映射
@@ -105,14 +103,23 @@ class InteractionManager:
             log_error(e, "坐标映射失败")
             return None, None
 
+    def _warn(self, msg):
+        """打印黄色警告并记录到状态栏 flash 提示"""
+        print(f"  {_WARN_COLOR}[WARNING] {msg}{_WARN_RESET}")
+        self._flash_warning = msg
+
+    def _encode_coord(self, value, delta_mm):
+        """世界坐标(米) → 协议值：×scale+offset+偏差修正(mm)，再截断到协议范围"""
+        proto = int(round(value * config.coordinate_scale
+                          + config.coordinate_offset + delta_mm))
+        return max(0, min(config.protocol_max_value, proto))
+
     # ─────── 键盘事件处理 ───────
 
     def handle_key(self, n: int):
         """数字键处理：打包数据（不发送，需按空格确认）"""
         if self.mapper is None:
-            msg = "标定未就绪，无法打包数据"
-            print(f"  {_WARN_COLOR}[WARNING] {msg}{_WARN_RESET}")
-            self._flash_warning = msg
+            self._warn("标定未就绪，无法打包数据")
             return
         if not (0 <= n <= 9):
             print(f"[WARNING] 无效的数字键: {n}")
@@ -123,16 +130,12 @@ class InteractionManager:
         print(f"   📌 参考点世界坐标: X={x_world:.4f}m, Y={y_world:.4f}m")
 
         # 计算协议值：映射坐标(米) → 毫米，偏差修正(mm)直接叠加在发送数据上
-        scale, offset = config.coordinate_scale, config.coordinate_offset
-        x_proto = int(round(x_world * scale + offset + config.coord_offset_x_mm))
-        y_proto = int(round(y_world * scale + offset + config.coord_offset_y_mm))
-        x_proto = max(0, min(config.protocol_max_value, x_proto))
-        y_proto = max(0, min(config.protocol_max_value, y_proto))
+        x_proto = self._encode_coord(x_world, config.coord_offset_x_mm)
+        y_proto = self._encode_coord(y_world, config.coord_offset_y_mm)
 
         # 右键 X 协议值（同X编码方式，同样叠加 X 偏差）
         rx, _ = self.data.right_click_coords
-        rx_proto = int(round(rx * scale + offset + config.coord_offset_x_mm))
-        rx_proto = max(0, min(config.protocol_max_value, rx_proto))
+        rx_proto = self._encode_coord(rx, config.coord_offset_x_mm)
 
         # 缓存待发送数据（不立即发送）
         self.data.set_pending_proto(x_proto, y_proto, n, rx_proto)
@@ -142,9 +145,7 @@ class InteractionManager:
         """空格键确认：发送缓存的待发送数据"""
         pending = self.data.pending_proto
         if pending is None:
-            msg = "没有待发数据，请先按数字键打包"
-            print(f"  {_WARN_COLOR}[WARNING] {msg}{_WARN_RESET}")
-            self._flash_warning = msg
+            self._warn("没有待发数据，请先按数字键打包")
             return
         x_proto, y_proto, n, rx_proto = pending
 
@@ -196,9 +197,3 @@ class InteractionManager:
         else:
             sent = "已发: --"
         return f"{pending}\n{sent}"
-
-    # ─────── 数据操作（委托 RuntimeData） ───────
-
-    def reset(self):
-        """重置所有运行时数据（保留 mapper 和 comm 引用）"""
-        self.data.reset_all()

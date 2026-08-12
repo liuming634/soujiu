@@ -41,17 +41,21 @@ class SerialDataProtocol:
     FRAME_LEN = 18
     STM32_FRAME_LEN = 16
     CMD_DATA = 0x01
+    MAX_DATA = 9999   # 数据1/2/4 取值范围 (0~9999)
+    MAX_N = 9         # 数据3 N 取值范围 (0~9)
 
     @staticmethod
-    def pack(data1: int, data2: int, data3: int, data4: int = 0,
-             prefix: bytes = b'\x56\x78') -> bytes:
+    def pack(data1: int, data2: int, data3: int, data4: int = 0, prefix: bytes = None) -> bytes:
         """打包四个数成 18 字节帧
 
-        prefix: 硬件校验前缀，2字节，默认 0x5678
+        prefix: 硬件校验前缀，2字节（由调用方按 config.serial_prefix 传入，必填）
         """
-        if not (0 <= data1 <= 9999 and 0 <= data2 <= 9999 and 0 <= data3 <= 9 and 0 <= data4 <= 9999):
+        if not (0 <= data1 <= SerialDataProtocol.MAX_DATA
+                and 0 <= data2 <= SerialDataProtocol.MAX_DATA
+                and 0 <= data3 <= SerialDataProtocol.MAX_N
+                and 0 <= data4 <= SerialDataProtocol.MAX_DATA):
             raise ValueError("data1/data2/data4 必须为 0~9999，data3 必须为 0~9")
-        if len(prefix) != 2:
+        if not prefix or len(prefix) != 2:
             raise ValueError("prefix 必须为 2 字节")
 
         frame = bytearray(SerialDataProtocol.FRAME_LEN)
@@ -101,13 +105,6 @@ class SerialComm:
         self.protocol = SerialDataProtocol()
         self._connected = True  # 打开成功即为已连接
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-        return False
-
     def is_connected(self) -> bool:
         """串口当前是否正常连接"""
         try:
@@ -133,10 +130,3 @@ class SerialComm:
         """关闭串口"""
         if self.ser and self.ser.is_open:
             self.ser.close()
-
-
-# 使用示例
-if __name__ == "__main__":
-    # comm = SerialComm('COM3', 115200)   # 请改为实际端口
-    # comm.send_data(1234, 5678, 9)
-    pass

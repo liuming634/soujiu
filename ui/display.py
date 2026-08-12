@@ -4,7 +4,6 @@ GUI 显示模块 - PyQt5 视频显示界面
 import time
 import re
 import cv2
-import numpy as np
 from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout,
                              QHBoxLayout, QPushButton, QGridLayout,
                              QSizePolicy, QDialog, QSlider, QCheckBox,
@@ -12,8 +11,11 @@ from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout,
 from PyQt5.QtCore import Qt, QRect, QPoint, QTimer
 from PyQt5.QtGui import QImage, QPixmap, QFont, QIcon, QPainter, QPen, QColor
 from core.config import config
-from core.utils import log_error
+from core.utils import log_error, px_to_ratio
 from logic.interaction_manager import InteractionState
+
+# QuickPopup 自动关闭延迟（毫秒）
+_POPUP_AUTO_CLOSE_MS = 750
 
 
 class QuickPopup(QDialog):
@@ -34,7 +36,7 @@ class QuickPopup(QDialog):
             cp = parent.geometry().center()
             self.move(cp.x() - self.width() // 2, cp.y() - self.height() // 2)
         self.show()
-        QTimer.singleShot(750, self.close)
+        QTimer.singleShot(_POPUP_AUTO_CLOSE_MS, self.close)
 
 
 class FieldDiagram(QWidget):
@@ -137,12 +139,13 @@ class GrabRangeBar(QWidget):
 class VideoDisplay(QWidget):
     """
     视频显示组件
-    - 左侧可添加按钮
+    - 左侧截图格区 + 顶部状态栏 + 系统按钮
     - 右侧显示视频帧（保持原始比例）
     - 支持鼠标左键、右键、中键自定义回调
     """
 
     STATUS_BAR_HEIGHT = 210
+    ROI_PREVIEW_SIZE = (240, 170)   # ROI 预览标签尺寸
 
     def __init__(self, title="视频显示", parent=None, show_fps=True):
         super().__init__(parent)
@@ -150,18 +153,54 @@ class VideoDisplay(QWidget):
         self.setWindowTitle(title)
 
         # 主布局：水平布局，左侧按钮，右侧视频
-        main_layout = QHBoxLayout()
-        self.setLayout(main_layout)
+        self.main_layout = QHBoxLayout()
+        self.setLayout(self.main_layout)
 
-        # ---------- 左侧按钮区域 ----------
+        self._build_left_panel()
+        self._build_right_panel()
+
+        self.main_layout.addWidget(self.right_panel, 1)
+
+        # 帧率统计
+        self.show_fps = show_fps
+        self.frame_count = 0
+        self.last_time = time.time()
+
+        # 标志：是否已根据第一帧调整窗口大小
+        self.first_frame = True
+
+        # ----- 鼠标事件相关 -----
+        self._mouse_callbacks = {}
+
+        # 记录当前显示区域信息（用于坐标转换）
+        self.original_width = 0
+        self.original_height = 0
+        self.display_rect = None
+
+        # ----- 键盘事件相关 -----
+        self.keyboard_callback = None
+
+        # 开启键盘焦点，确保能收到按键事件
+        self.setFocusPolicy(Qt.StrongFocus)
+
+        # 禁用右键默认菜单
+        self.setContextMenuPolicy(Qt.NoContextMenu)
+
+        self._flash_message = None
+        self._flash_time = 0
+        self._prev_camera = None
+        self._prev_comm = None
+
+    def _build_left_panel(self):
+        """左侧面板：模式切换按钮 + 截图格子区"""
         self.button_widget = QWidget()
         self.button_layout = QVBoxLayout()
         self.button_widget.setLayout(self.button_layout)
         self.button_layout.setContentsMargins(0, 0, 0, 0)
         self.button_widget.setFixedWidth(config.gui_button_panel_width)
-        main_layout.addWidget(self.button_widget)
+        self.main_layout.addWidget(self.button_widget)
 
-        # ---------- 截图格子区域（随 GUI 模式整体切换） ----------
+        # 截图格子区域（随 GUI 模式整体切换）
         self.mode_btn = QPushButton()
         self.mode_btn.setFixedHeight(28)
         self.mode_btn.setStyleSheet(
@@ -184,14 +223,29 @@ class VideoDisplay(QWidget):
         # 格子点击回调
         self.grid_click_callback = None
 
-        # ---------- 右侧区域：顶部状态栏 + 下方独立画面显示区 ----------
+    def _build_right_panel(self):
+        """右侧面板：顶部状态栏 + 抓取条 + 画面显示区 + 偏差输入框"""
         self.right_panel = QWidget()
         right_layout = QVBoxLayout()
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(0)
         self.right_panel.setLayout(right_layout)
 
-        # 顶部状态栏（含系统按钮 + 状态文本 + ROI）
+        self._build_status_area(right_layout)
+        self._build_grab_bar(right_layout)
+
+        # 画面显示控件（填满状态栏下方的剩余区域）
+        self.label = QLabel()
+        self.label.setScaledContents(False)
+        self.label.setAlignment(Qt.AlignCenter)
+        self.label.setStyleSheet("background-color: black;")
+        right_layout.addWidget(self.label, 1)
+
+        # 偏差修正输入框（叠加在视频画面左上角，实时生效并持久化）
+        self._create_offset_inputs()
+
+    def _build_status_area(self, right_layout):
+        """顶部状态栏：状态文本 + ROI 预览 + 路线图 + 规则 + 系统按钮"""
         self.status_container = QWidget()
         self.status_container.setStyleSheet("background-color: black;")
         outer_layout = QVBoxLayout()
@@ -220,7 +274,7 @@ class VideoDisplay(QWidget):
         info_layout.addWidget(self.status_bar)
 
         self.roi_preview_label = QLabel()
-        self.roi_preview_label.setFixedSize(240, 170)
+        self.roi_preview_label.setFixedSize(*self.ROI_PREVIEW_SIZE)
         self.roi_preview_label.setAlignment(Qt.AlignCenter)
         self.roi_preview_label.setStyleSheet("background-color: #333;")
         info_layout.addWidget(self.roi_preview_label)
@@ -254,8 +308,10 @@ class VideoDisplay(QWidget):
         self._sys_btn_cols = 2
 
         outer_layout.addWidget(info_row)
+        right_layout.addWidget(self.status_container)
 
-        # ── 抓取范围调节条（状态栏与画面之间）──
+    def _build_grab_bar(self, right_layout):
+        """抓取范围调节条（状态栏与画面之间）"""
         self.grab_bar = GrabRangeBar()
         self.grab_bar.x_slider.valueChanged.connect(lambda v: self._on_grab_slider("x", v))
         self.grab_bar.y_slider.valueChanged.connect(lambda v: self._on_grab_slider("y", v))
@@ -268,83 +324,12 @@ class VideoDisplay(QWidget):
         self._show_overlays = config.show_overlays
         self.grab_bar.show_checkbox.setChecked(self._show_overlays)
         self.grab_bar.show_checkbox.toggled.connect(self._on_toggle_overlays)
-
-        # 顶部状态栏 + 下方画面显示区（独立，互不重叠）
-        right_layout.addWidget(self.status_container)
         right_layout.addWidget(self.grab_bar)
-
-        # 画面显示控件（填满状态栏下方的剩余区域）
-        self.label = QLabel()
-        self.label.setScaledContents(False)
-        self.label.setAlignment(Qt.AlignCenter)
-        self.label.setStyleSheet("background-color: black;")
-        right_layout.addWidget(self.label, 1)
-
-        # ── 偏差修正输入框（叠加在视频画面左上角，实时生效并持久化） ──
-        self._create_offset_inputs()
-
-        main_layout.addWidget(self.right_panel, 1)
-
-        # 帧率统计
-        self.show_fps = show_fps
-        self.frame_count = 0
-        self.last_time = time.time()
-
-        # 存储按钮与回调的映射
-        self.buttons = {}
-
-        # 标志：是否已根据第一帧调整窗口大小
-        self.first_frame = True
-
-        # ----- 鼠标事件相关 -----
-        self._mouse_callbacks = {}
-
-        # 记录当前显示区域信息（用于坐标转换）
-        self.original_width = 0
-        self.original_height = 0
-        self.display_rect = None
-
-        # ----- 键盘事件相关 -----
-        self.keyboard_callback = None
-
-        # 开启键盘焦点，确保能收到按键事件
-        self.setFocusPolicy(Qt.StrongFocus)
-
-        # 禁用右键默认菜单
-        self.setContextMenuPolicy(Qt.NoContextMenu)
-
-        self._flash_message = None
-        self._flash_time = 0
-        self._prev_camera = None
-        self._prev_comm = None
-
-    def update_status(self, text):
-        """更新右侧状态栏显示"""
-        self.status_bar.setText(text)
 
     def flash_message(self, msg):
         """在状态栏显示临时消息（3秒后消失）"""
         self._flash_message = msg
         self._flash_time = time.time()
-
-    def add_button(self, text, callback, tooltip=None):
-        """
-        在左侧添加一个按钮
-
-        Args:
-            text: 按钮文本
-            callback: 按钮点击时调用的函数（无参数）
-            tooltip: 鼠标悬停提示（可选）
-        """
-        try:
-            button = QPushButton(text)
-            if tooltip:
-                button.setToolTip(tooltip)
-            button.clicked.connect(callback)
-            self.button_layout.addWidget(button)
-            self.buttons[text] = button
-        except Exception as e:
-            log_error(e, f"添加按钮 '{text}' 失败")
 
     def add_sys_button(self, text, callback, tooltip=None):
         """在顶部状态栏添加一个系统按钮（自动排列为2列）"""
@@ -418,17 +403,16 @@ class VideoDisplay(QWidget):
             # 在图像上绘制十字线（定位用）
             self._draw_crosshair(frame)
 
-            # 将 BGR 转换为 RGB（此时已是显示尺寸）
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            h, w, ch = rgb.shape
-            bytes_per_line = ch * w
-            qimage = QImage(rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
-            pixmap = QPixmap.fromImage(qimage)
+            # 显示尺寸（缩放后，用于计算居中偏移）
+            disp_h, disp_w = frame.shape[:2]
 
-            # 首次显示：调整窗口大小
+            # 将 BGR 转换为 QPixmap（此时已是显示尺寸）
+            pixmap = self._bgr_to_pixmap(frame)
+
+            # 首次显示：调整窗口大小（按缩放后的显示尺寸，与原行为一致）
             if self.first_frame:
                 self.first_frame = False
-                self._adjust_window_size(w, h)
+                self._adjust_window_size(disp_w, disp_h)
 
             # 设置 pixmap（已为显示尺寸，无需再缩放）
             self.label.setPixmap(pixmap)
@@ -436,9 +420,9 @@ class VideoDisplay(QWidget):
             # 重新获取 label 尺寸以计算居中偏移
             ls = self.label.size()
             if ls.width() > 0 and ls.height() > 0:
-                ox = (ls.width() - w) // 2
-                oy = (ls.height() - h) // 2
-                self.display_rect = QRect(ox, oy, w, h)
+                ox = (ls.width() - disp_w) // 2
+                oy = (ls.height() - disp_h) // 2
+                self.display_rect = QRect(ox, oy, disp_w, disp_h)
             else:
                 self.display_rect = None
 
@@ -448,6 +432,14 @@ class VideoDisplay(QWidget):
 
         except Exception as e:
             log_error(e, "更新视频帧失败")
+
+    def _bgr_to_pixmap(self, frame, w=None, h=None):
+        """BGR numpy 帧 → QPixmap（画面显示/格子图标/ROI 预览共用）"""
+        if w is None or h is None:
+            h, w = frame.shape[:2]
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        qimage = QImage(rgb.tobytes(), w, h, 3 * w, QImage.Format_RGB888)
+        return QPixmap.fromImage(qimage)
 
     def _adjust_window_size(self, video_width, video_height):
         """根据视频尺寸调整窗口大小"""
@@ -554,25 +546,15 @@ class VideoDisplay(QWidget):
             return
         self.grab_bar.value_labels[key].setText(str(value))
         if key == "x":
-            config.grab_range_x_ratio = self._px_to_ratio(value, self.original_width)
+            config.grab_range_x_ratio = px_to_ratio(value, self.original_width)
         elif key == "y":
-            config.grab_range_y_ratio = self._px_to_ratio(value, self.original_height)
+            config.grab_range_y_ratio = px_to_ratio(value, self.original_height)
         else:
-            config.grab_range_radius_ratio = self._px_to_ratio(value, self.original_width)
-
-    @staticmethod
-    def _px_to_ratio(px, size):
-        """像素值 → 占画面比例 (0~1)；无参考尺寸时保持原值"""
-        if not size or size <= 0:
-            return 0.5
-        return max(0.0, min(1.0, px / float(size)))
+            config.grab_range_radius_ratio = px_to_ratio(value, self.original_width)
 
     def _save_grab_config(self):
         """滑块松开 → 持久化一次到 camera_params.yaml"""
-        try:
-            config.save_to_yaml(config.resolve_path("camera_params.yaml"))
-        except Exception as e:
-            log_error(e, "保存抓取范围配置失败")
+        config.save()
 
     # ─────── 偏差修正输入框（叠加在视频画面左上角，累加模式） ───────
 
@@ -639,19 +621,13 @@ class VideoDisplay(QWidget):
             return
         setattr(config, key, getattr(config, key) + delta)
         self._sync_offset_total()
-        try:
-            config.save_to_yaml(config.resolve_path("camera_params.yaml"))
-        except Exception as e:
-            log_error(e, "保存偏差修正配置失败")
+        config.save()
 
     def _on_toggle_overlays(self, checked):
         """范围圆/十字准星 开关 → 立即生效并持久化"""
         self._show_overlays = checked
         config.show_overlays = checked
-        try:
-            config.save_to_yaml(config.resolve_path("camera_params.yaml"))
-        except Exception as e:
-            log_error(e, "保存叠加线开关配置失败")
+        config.save()
 
     def _get_image_coordinates(self, event):
         """
@@ -750,8 +726,7 @@ class VideoDisplay(QWidget):
 
         self.button_widget.setFixedWidth(config.gui_button_panel_width)
 
-        bw = config.gui_button_panel_width - 4
-        bh = bw * 9 // 16
+        bw, bh = self._grid_button_size()
         for row in range(config.gui_grid_rows):
             for col in range(config.gui_grid_cols):
                 btn = QPushButton(f"{row + 1}")
@@ -767,6 +742,11 @@ class VideoDisplay(QWidget):
         if getattr(self, "field_diagram", None):
             self.field_diagram.update()
 
+    def _grid_button_size(self):
+        """截图格子按钮尺寸（按当前面板宽度计算）"""
+        bw = config.gui_button_panel_width - 4
+        return bw, bw * 9 // 16
+
     def _update_mode_button(self):
         """更新模式切换按钮文字（显示将切换到的模式）"""
         self.mode_btn.setText("→ 六格模式" if config.gui_mode == "3" else "→ 三格模式")
@@ -775,10 +755,7 @@ class VideoDisplay(QWidget):
         """切换三格/六格 GUI 模式：重建格子 + 刷新路线图 + 持久化 + 重算窗口"""
         config.gui_mode = "6" if config.gui_mode == "3" else "3"
         self._build_grid()
-        try:
-            config.save_to_yaml(config.resolve_path("camera_params.yaml"))
-        except Exception as e:
-            log_error(e, "保存 GUI 模式失败")
+        config.save()
         if self.original_width and self.original_height:
             self._adjust_window_size(self.original_width, self.original_height)
 
@@ -799,11 +776,8 @@ class VideoDisplay(QWidget):
         y1 = (h - crop_h) // 2
         crop = frame[y1:y1 + crop_h, x1:x1 + crop_w]
 
-        rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
-        qimage = QImage(rgb.tobytes(), crop_w, crop_h, 3 * crop_w, QImage.Format_RGB888)
-        pixmap = QPixmap.fromImage(qimage)
-        bw = config.gui_button_panel_width - 4
-        bh = bw * 9 // 16
+        pixmap = self._bgr_to_pixmap(crop, crop_w, crop_h)
+        bw, bh = self._grid_button_size()
         scaled = pixmap.scaled(bw, bh, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
         btn = self.grid_buttons[row * config.gui_grid_cols + col]
@@ -847,19 +821,16 @@ class VideoDisplay(QWidget):
             # 缩放到 ROI 标签宽度
             preview_w = self.roi_preview_label.width()
             if preview_w < 10:
-                preview_w = 240
+                preview_w = self.ROI_PREVIEW_SIZE[0]
             roi_h, roi_w = roi.shape[:2]
             scale = preview_w / roi_w
             preview_h = int(roi_h * scale)
             roi = cv2.resize(roi, (preview_w, preview_h), interpolation=cv2.INTER_LINEAR)
 
-            # BGR → RGB → QPixmap
-            rgb = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
-            h_r, w_r = rgb.shape[:2]
-            qimage = QImage(rgb.tobytes(), w_r, h_r,
-                            3 * w_r, QImage.Format_RGB888)
-            pixmap = QPixmap.fromImage(qimage)
-            scaled = pixmap.scaled(240, 170, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            # BGR → QPixmap → 缩放
+            pixmap = self._bgr_to_pixmap(roi)
+            scaled = pixmap.scaled(*self.ROI_PREVIEW_SIZE,
+                                   Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.roi_preview_label.setPixmap(scaled)
 
         except Exception as e:

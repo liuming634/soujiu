@@ -1,7 +1,8 @@
 """
 畸变标定工具 - 独立脚本，采集棋盘格图像并标定相机内参
 
-无需依赖 core.config，脚本自动定位项目目录。
+标定参数在下方模块常量中定义（与 core.config 中的保持一致）。
+摄像头后端回退复用 hardware.camera.get_camera_backends()。
 帧率优化：waitKey(1) 实时显示 + 缩略图检测棋盘格 + 冷却计数代替硬阻塞。
 
 使用方法:
@@ -15,7 +16,8 @@
 import cv2
 import numpy as np
 import os
-import sys
+
+from hardware.camera import get_camera_backends
 
 # ── 标定参数（可直接修改） ──────────────────────────────────────
 CHESSBOARD_PATTERN = (11, 8)          # 内角点数 (列, 行)
@@ -50,16 +52,11 @@ def main():
 
     # 打开摄像头（带后端回退）
     def _try_open_cam():
-        if sys.platform.startswith("win"):
-            backends = [(cv2.CAP_DSHOW, "DSHOW"), (cv2.CAP_MSMF, "MSMF")]
-        else:
-            backends = [(cv2.CAP_V4L2, "V4L2"), (cv2.CAP_ANY, "ANY")]
-        for backend, name in backends:
+        for backend, _name in get_camera_backends():
             cap = cv2.VideoCapture(CAMERA_ID, backend)
             if cap.isOpened():
                 return cap
-        cap = cv2.VideoCapture(CAMERA_ID)
-        return cap
+        return cv2.VideoCapture(CAMERA_ID)
 
     cap = _try_open_cam()
     if not cap or not cap.isOpened():
@@ -170,7 +167,7 @@ def main():
     np.save(DIST_COEFFS_FILE, dist)
 
     print(f"\n{'=' * 60}")
-    print(f"✅ 畸变标定完成！")
+    print("✅ 畸变标定完成！")
     print(f"{'=' * 60}")
     print(f"   帧数: {collected}")
     print(f"   重投影误差: {avg_error:.4f} 像素")

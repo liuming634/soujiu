@@ -24,7 +24,7 @@ class Undistorter:
                 self.camera_matrix = np.load(camera_matrix_file)
                 self.dist_coeffs = np.load(dist_coeffs_file)
                 self._map1 = None  # 缓存失效，等下次 undistort 重建
-                print(f"✅ 畸变参数已加载")
+                print("✅ 畸变参数已加载")
                 print(f"   内参矩阵:\n{self.camera_matrix}")
                 print(f"   畸变系数: {self.dist_coeffs.ravel()}")
                 return True
@@ -40,7 +40,7 @@ class Undistorter:
                 os.makedirs(dir_name)
             np.save(camera_matrix_file, self.camera_matrix)
             np.save(dist_coeffs_file, self.dist_coeffs)
-            print(f"✅ 畸变参数已保存")
+            print("✅ 畸变参数已保存")
             print(f"   内参矩阵: {camera_matrix_file}")
             print(f"   畸变系数: {dist_coeffs_file}")
         except Exception as e:
@@ -87,5 +87,34 @@ class Undistorter:
                             interpolation=cv2.INTER_LINEAR)
 
         return undist
+
+
+class UndistortMixin:
+    """去畸变集成 mixin：CameraManager 与 FpvReceiver 共用，保证两条采集路线接口一致。
+
+    要求子类：
+      - 定义 read_frame()，返回 (success, frame)
+      - 构造时调用 self._init_undistorter(matrix_file, coeffs_file)
+    """
+
+    def _init_undistorter(self, matrix_file, coeffs_file):
+        """加载畸变参数（未标定时 is_calibrated() 返回 False，undistort 原样返回）"""
+        self._undistorter = Undistorter()
+        self._undistorter.load(matrix_file, coeffs_file)
+
+    def is_calibrated(self):
+        """畸变参数是否已加载"""
+        return self._undistorter.is_calibrated()
+
+    def undistort(self, frame):
+        """对任意帧做去畸变（未标定时返回原图）"""
+        return self._undistorter.undistort(frame)
+
+    def read_undistorted_frame(self):
+        """读取一帧并做去畸变（采集+预处理一步完成）"""
+        ret, frame = self.read_frame()
+        if not ret:
+            return False, frame
+        return True, self._undistorter.undistort(frame)
 
 

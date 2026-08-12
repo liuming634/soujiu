@@ -385,6 +385,8 @@ class SettingsDialog(QDialog):
 
     def _collect_values(self):
         """收集对话框中所有配置值，返回 dict"""
+        from core.config import config
+        prefix_raw = self.prefix_edit.text().strip()
         return {
             # 信号源
             "camera_source": self.source_combo.currentData(),
@@ -410,7 +412,7 @@ class SettingsDialog(QDialog):
             "serial_baudrate": int(self.baudrate_combo.currentData()
                                    or self.baudrate_combo.currentText()),
             "serial_timeout": self.timeout_spin.value(),
-            "serial_prefix": int(self.prefix_edit.text().strip(), 16) if self.prefix_edit.text().strip() else 0x5678,
+            "serial_prefix": int(prefix_raw, 16) if prefix_raw else config.serial_prefix,
             # 标定路径
             "homography_file": self._file_edits["homography_file"].text().strip(),
             "camera_matrix_file": self._file_edits["camera_matrix_file"].text().strip(),

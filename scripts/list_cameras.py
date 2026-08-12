@@ -6,7 +6,8 @@
     python list_cameras.py
 """
 import cv2
-import sys
+
+from hardware.camera import get_camera_backends
 
 
 def list_cameras():
@@ -15,22 +16,9 @@ def list_cameras():
     print("📹 枚举系统摄像头")
     print("=" * 60)
 
-    is_windows = sys.platform.startswith("win")
-
-    if is_windows:
-        backends = [
-            (cv2.CAP_DSHOW, "DSHOW"),
-            (cv2.CAP_MSMF, "MSMF"),
-        ]
-    else:
-        backends = [
-            (cv2.CAP_V4L2, "V4L2"),
-            (cv2.CAP_ANY, "ANY"),
-        ]
-
     found = []
 
-    for backend, backend_name in backends:
+    for backend, backend_name in get_camera_backends():
         print(f"\n--- {backend_name} 后端 ---")
         for index in range(10):  # 扫描 0-9
             cap = cv2.VideoCapture(index, backend)
@@ -51,8 +39,8 @@ def list_cameras():
         for i, (backend, index, w, h) in enumerate(found):
             marker = " <-- 最可能是 USB 相机" if i > 0 and i == len(found) - 1 else ""
             print(f"  [{i}] {backend} 索引={index}  {w}x{h}{marker}")
-        print(f"\n💡 打开「系统设置」→「相机」→ 输入对应的索引号即可")
-        print(f"   也可以在 camera_params.yaml 中设置 camera_id")
+        print("\n💡 打开「系统设置」→「相机」→ 输入对应的索引号即可")
+        print("   也可以在 camera_params.yaml 中设置 camera_id")
         print(f"   如果索引 {found[0][1]} 是你的 USB 相机，则无需修改")
     else:
         print("❌ 未找到任何可用摄像头，请检查 USB 连接和驱动")

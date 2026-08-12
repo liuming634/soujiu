@@ -16,19 +16,21 @@ except (ImportError, OSError):
     FPV_RX_AVAILABLE = False
     print("[WARNING] fpv_rx 扩展不可用，FPV 图传功能已禁用（缺少编译产物时可忽略）")
 
-import cv2
 import numpy as np
 
 from core.config import config
-from hardware.undistorter import Undistorter
+from hardware.undistorter import UndistortMixin
+from core.utils import make_status_frame
 
 
-class FpvReceiver:
+class FpvReceiver(UndistortMixin):
+    """FPV 图传接收器（RTL8812AU + WFB-ng 协议），接口与 CameraManager 保持一致"""
+
+    VID_PID = "0bda:8812"      # RTL8812AU 网卡 USB ID
     CH_WIDTH_MAP = {20: 0, 40: 1, 80: 2}
 
     def __init__(self):
         self._rx = fpv_rx.Receiver() if FPV_RX_AVAILABLE else None
-        self._waiting_frame = None
         self._connected = False
         self._conn_params = None
         self._last_valid_time = 0.0
@@ -37,11 +39,10 @@ class FpvReceiver:
         self._last_frame_size = (config.fpv_height, config.fpv_width)  # 最近一次成功帧尺寸 (h, w)
 
         # 与 USB 相机同一条链路：集成畸变矫正器
-        self._undistorter = Undistorter()
-        self._undistorter.load(config.resolve_path(config.camera_matrix_file),
+        self._init_undistorter(config.resolve_path(config.camera_matrix_file),
                                config.resolve_path(config.dist_coeffs_file))
 
-    def open(self, vid_pid="0bda:8812", channel=149, channel_width=20,
+    def open(self, vid_pid=VID_PID, channel=149, channel_width=20,
              key_path="gs.key", link_id=7669206,
              codec="h265", video_width=1280, video_height=720, fps=120):
         if self._rx is None:
@@ -89,18 +90,6 @@ class FpvReceiver:
     def is_connected(self) -> bool:
         return self._connected
 
-    def is_calibrated(self) -> bool:
-        return self._undistorter.is_calibrated()
-
-    def undistort(self, frame):
-        return self._undistorter.undistort(frame)
-
-    def read_undistorted_frame(self):
-        ret, frame = self.read_frame()
-        if not ret:
-            return False, frame
-        return True, self._undistorter.undistort(frame)
-
     def release(self):
         if self._rx is not None:
             try:
@@ -109,20 +98,10 @@ class FpvReceiver:
                 pass
         if self._conn_params:
             self._connected = False
-            self._waiting_frame = None
             self._last_frame = None
 
     def _status_frame(self, message: str) -> np.ndarray:
-        self._waiting_frame = None
-        h, w = self._last_frame_size
-        frame = np.zeros((h, w, 3), dtype=np.uint8)
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        scale = max(0.8, min(2.5, w / 1280.0))
-        text_size = cv2.getTextSize(message, font, scale, 2)[0]
-        tx = (w - text_size[0]) // 2
-        ty = h // 2 - 10
-        cv2.putText(frame, message, (tx, ty), font, scale, (0, 165, 255), 2)
-        return frame
+        return make_status_frame(message, self._last_frame_size)
 
     def __del__(self):
         self.release()

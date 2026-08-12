@@ -6,8 +6,8 @@ import cv2
 import os
 import numpy as np
 from core.config import config
-from hardware.undistorter import Undistorter
-from core.utils import log_error
+from hardware.undistorter import UndistortMixin
+from core.utils import log_error, make_status_frame
 
 # 全局抑制 OpenCV 控制台警告（不影响功能）
 os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
@@ -17,8 +17,23 @@ except Exception:
     pass
 
 
-class CameraManager:
+def get_camera_backends():
+    """按平台返回摄像头后端列表 [(后端标志, 名称), ...]（枚举/初始化共用）"""
+    if config.is_windows:
+        return [(cv2.CAP_DSHOW, "DSHOW"),
+                (cv2.CAP_MSMF, "MSMF")]
+    return [(cv2.CAP_V4L2, "V4L2"),
+            (cv2.CAP_ANY, "ANY")]
+
+
+class CameraManager(UndistortMixin):
     """摄像头管理器（集成采集和去畸变）"""
+
+    # 断线重连参数
+    _RETRY_INTERVAL_INITIAL = 1.0   # 初始重试间隔（秒）
+    _RETRY_INTERVAL_FACTOR = 1.5    # 重试失败后的间隔倍增因子
+    _RETRY_INTERVAL_MAX = 5.0       # 重试间隔上限（秒）
+    _RETRY_LOG_THROTTLE = 5.0       # 重连日志节流间隔（秒）
 
     def __init__(self):
         self.camera_id = config.camera_id
@@ -29,13 +44,12 @@ class CameraManager:
         # 断线重连状态
         self._connected = False          # 当前是否正常读取帧
         self._last_reconnect_attempt = 0.0   # 上次重试时间戳
-        self._reconnect_interval = 1.0       # 重试间隔（秒）
+        self._reconnect_interval = self._RETRY_INTERVAL_INITIAL  # 重试间隔（秒）
         self._last_log_time = 0.0            # 上次重连日志时间（防刷屏）
         self._last_frame_size = (config.camera_height, config.camera_width)  # 最近一次成功帧尺寸 (h, w)
 
         # 集成畸变矫正器
-        self._undistorter = Undistorter()
-        self._undistorter.load(config.resolve_path(config.camera_matrix_file),
+        self._init_undistorter(config.resolve_path(config.camera_matrix_file),
                                config.resolve_path(config.dist_coeffs_file))
 
         self._initialize_camera()
@@ -67,27 +81,14 @@ class CameraManager:
             self._cap = None
         self._connected = False
         now = time.time()
-        if now - self._last_log_time > 5.0:
+        if now - self._last_log_time > self._RETRY_LOG_THROTTLE:
             print("[WARNING] ⚠️  摄像头已断开，正在尝试自动重连...")
             self._last_log_time = now
 
     def _create_status_frame(self, message: str) -> np.ndarray:
         """生成带状态文字的占位帧（无相机时在 GUI 上显示，保持与实拍同分辨率）"""
-        h, w = self._last_frame_size
-        frame = np.zeros((h, w, 3), dtype=np.uint8)
-        # 居中显示消息（橙色），字号随分辨率缩放
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        scale = max(0.8, min(2.5, w / 1280.0))
-        text_size = cv2.getTextSize(message, font, scale, 2)[0]
-        tx = (w - text_size[0]) // 2
-        ty = h // 2 - 10
-        cv2.putText(frame, message, (tx, ty), font, scale, (0, 165, 255), 2)
-        # 小提示
-        hint = "Check camera connection"
-        hint_size = cv2.getTextSize(hint, font, scale * 0.6, 1)[0]
-        cv2.putText(frame, hint, ((w - hint_size[0]) // 2, ty + int(40 * scale)),
-                    font, scale * 0.6, (100, 100, 100), 1)
-        return frame
+        return make_status_frame(message, self._last_frame_size,
+                                 hint="Check camera connection")
 
     # ─────── 摄像头初始化 ───────
 
@@ -135,14 +136,7 @@ class CameraManager:
         try:
             print(f"🎥 摄像头 {self.camera_id} ({self.width}x{self.height}@{config.camera_fps})")
 
-            if config.is_windows:
-                backends = [(cv2.CAP_DSHOW, "DSHOW"),
-                            (cv2.CAP_MSMF, "MSMF")]
-            else:
-                backends = [(cv2.CAP_V4L2, "V4L2"),
-                            (cv2.CAP_ANY, "ANY")]
-
-            for backend, name in backends:
+            for backend, name in get_camera_backends():
                 self._cap = self._try_open(self.camera_id, backend)
                 if self._cap is not None:
                     print(f"✅ 摄像头 {self.camera_id} 初始化成功 ({name})")
@@ -193,7 +187,9 @@ class CameraManager:
                     self._handle_disconnect()
                 else:
                     # 重连失败，增加下次重试间隔（最大 5 秒）
-                    self._reconnect_interval = min(self._reconnect_interval * 1.5, 5.0)
+                    self._reconnect_interval = min(
+                        self._reconnect_interval * self._RETRY_INTERVAL_FACTOR,
+                        self._RETRY_INTERVAL_MAX)
             return False, self._create_status_frame("⏳ 相机重试中...")
 
         # 情况2：_cap 存在，正常读帧
@@ -206,7 +202,7 @@ class CameraManager:
             # 如果之前是断开状态，现在恢复（比如重连后读帧成功）
             if not self._connected:
                 self._connected = True
-                self._reconnect_interval = 1.0  # 重置重试间隔
+                self._reconnect_interval = self._RETRY_INTERVAL_INITIAL  # 重置重试间隔
                 print("✅ 摄像头已恢复")
 
             self._last_frame_size = frame.shape[:2]
@@ -216,27 +212,7 @@ class CameraManager:
             self._handle_disconnect()
             return False, self._create_status_frame("⚠️ 相机异常，正在重连...")
 
-    def read_undistorted_frame(self):
-        """
-        读取一帧并做去畸变（采集+预处理一步完成）
-
-        Returns:
-            tuple: (success: bool, frame: np.ndarray)
-        """
-        ret, frame = self.read_frame()
-        if not ret:
-            return False, frame
-        return True, self._undistorter.undistort(frame)
-
-    # ─────── 去畸变（委托 Undistorter） ───────
-
-    def undistort(self, frame):
-        """对任意帧做去畸变（未标定时返回原图）"""
-        return self._undistorter.undistort(frame)
-
-    def is_calibrated(self):
-        """畸变参数是否已加载"""
-        return self._undistorter.is_calibrated()
+    # ─────── 去畸变（由 UndistortMixin 提供 read_undistorted_frame/undistort/is_calibrated） ───────
 
     # ─────── 资源管理 ───────
 

@@ -109,7 +109,7 @@ class VisionFramework:
             if config.camera_source == "fpv":
                 self.camera = FpvReceiver()
                 ok = self.camera.open(
-                    vid_pid="0bda:8812",
+                    vid_pid=FpvReceiver.VID_PID,
                     channel=config.fpv_channel,
                     channel_width=config.fpv_channel_width,
                     key_path=config.resolve_path(config.fpv_key),
@@ -126,7 +126,7 @@ class VisionFramework:
             else:
                 self.camera = CameraManager()
                 if self.camera.is_available():
-                    print(f"✅ 摄像头初始化成功")
+                    print("✅ 摄像头初始化成功")
                 else:
                     print("  [WARNING] 摄像头不可用，可在「系统设置」中配置")
 
@@ -184,21 +184,7 @@ class VisionFramework:
         except Exception:
             pass
 
-        # 释放摄像头
-        if self.camera is not None:
-            try:
-                self.camera.release()
-            except Exception as e:
-                log_error(e, "释放摄像头时出错")
-            self.camera = None
-
-        # 释放串口
-        if self.interaction is not None and self.interaction.comm is not None:
-            try:
-                self.interaction.comm.close()
-            except Exception as e:
-                log_error(e, "关闭串口时出错")
-            self.interaction = None
+        self._cleanup()
 
         # 重置运行时数据
         self.data.reset_all()
@@ -206,20 +192,40 @@ class VisionFramework:
         print("✅ 系统已停止\n")
 
     def _cleanup(self):
-        """内部清理（start 失败时释放已初始化的部分）"""
+        """内部清理：释放已初始化的硬件（stop 与失败回退共用）"""
         if self.camera is not None:
             try:
                 self.camera.release()
-            except Exception:
-                pass
+            except Exception as e:
+                log_error(e, "释放摄像头时出错")
             self.camera = None
         if self.interaction is not None:
             if self.interaction.comm is not None:
                 try:
                     self.interaction.comm.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    log_error(e, "关闭串口时出错")
             self.interaction = None
+
+    def _safe_start(self, snapshot: dict) -> str:
+        """启动，失败则回退到快照并重试（restart 与刷新重启共用）
+
+        返回 'ok'（首次成功）/ 'rolled_back'（回退后成功）/ 'failed'（全部失败）。
+        """
+        try:
+            self.start()
+            self.display.show_fps = config.fps_display
+            return "ok"
+        except Exception as e:
+            log_error(e, "启动失败，开始回退")
+            self._cleanup()
+            config.restore(snapshot)
+            try:
+                self.start()
+                return "rolled_back"
+            except Exception as rollback_err:
+                log_error(rollback_err, "回退启动也失败")
+                return "failed"
 
     def restart(self, new_config: dict):
         """停止 → 改配置 → 启动（带事务回退）
@@ -234,37 +240,23 @@ class VisionFramework:
         # 1. 停止全部
         self.stop()
 
-        try:
-            # 2. 校验并更新配置
-            errors = config.update_from_dict_safe(new_config)
-            if errors:
-                print(f"[WARNING] 以下参数校验失败，已跳过: {errors}")
+        # 2. 校验并更新配置
+        errors = config.update_from_dict_safe(new_config)
+        if errors:
+            print(f"[WARNING] 以下参数校验失败，已跳过: {errors}")
 
-            # 3. 重新初始化全部硬件
-            self.start()
-
-            # 4. 应用到 UI
-            self.display.show_fps = config.fps_display
-
-            # 5. 持久化
-            config.save_to_yaml(config.resolve_path("camera_params.yaml"))
-
+        # 3. 重新初始化全部硬件（失败自动回退）
+        result = self._safe_start(old_snapshot)
+        if result == "ok":
+            # 4. 持久化 + 提示
+            config.save()
             self.display.flash_message("配置修改成功")
             print("✅ 配置修改成功\n")
-
-        except Exception as e:
-            log_error(e, "配置变更失败，开始回退")
-
-            self._cleanup()
-            config.restore(old_snapshot)
-
-            try:
-                self.start()
-                self.display.flash_message("配置已回退")
-                print("✅ 已回退到旧配置\n")
-            except Exception as rollback_err:
-                log_error(rollback_err, "回退启动也失败")
-                print("[CRITICAL] 系统无法启动，请检查配置后重启程序")
+        elif result == "rolled_back":
+            self.display.flash_message("配置已回退")
+            print("✅ 已回退到旧配置\n")
+        else:
+            print("[CRITICAL] 系统无法启动，请检查配置后重启程序")
 
     # ─────────── 处理循环 ───────────
 
@@ -273,8 +265,8 @@ class VisionFramework:
         try:
             if self.camera is None:
                 # 无摄像头对象（start 未调用）
-                bw = getattr(self.display, 'original_width', 0) or config.camera_width
-                bh = getattr(self.display, 'original_height', 0) or config.camera_height
+                bw = self.display.original_width or config.camera_width
+                bh = self.display.original_height or config.camera_height
                 blank = np.zeros((bh, bw, 3), dtype=np.uint8)
                 cv2.putText(blank, "No Camera", (160, 200),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.5, (100, 100, 100), 3)
@@ -300,13 +292,10 @@ class VisionFramework:
             # 实时帧 → 交互处理
             if ret and self.interaction is not None:
                 self.interaction.update_frame(frame)
-                state = self.interaction.get_state()
-                self.display.update_all(state)
-            elif self.interaction is not None:
-                # 断线时也刷新状态面板（显示 📷 相机: ✗）
-                self.display.update_all(self.interaction.get_state())
 
-            # 无论成功失败都显示帧（失败时返回带提示文字的占位帧）
+            # 无论成功失败都刷新状态面板 + 显示帧（断线时显示 📷 相机: ✗）
+            if self.interaction is not None:
+                self.display.update_all(self.interaction.get_state())
             self.display.update_frame(frame)
 
         except Exception as e:
@@ -367,14 +356,14 @@ class VisionFramework:
             print("=" * 60)
             print(f"相机 ID: {config.camera_id}")
             # 显示实际帧尺寸（有实际值就用，否则回退到配置值）
-            actual_w = getattr(self.display, 'original_width', 0)
-            actual_h = getattr(self.display, 'original_height', 0)
+            actual_w = self.display.original_width
+            actual_h = self.display.original_height
             if actual_w > 0 and actual_h > 0:
                 print(f"相机分辨率: {actual_w}x{actual_h} (实际)")
             else:
                 print(f"相机分辨率: {config.camera_width}x{config.camera_height} (配置)")
             x, y = self.data.last_plane_coords
-            print(f"\n当前状态:")
+            print("\n当前状态:")
             print(f"  最后位置: X={x:.3f}, Y={y:.3f}, Z={0.0}")
             print("=" * 60 + "\n")
 
@@ -413,19 +402,13 @@ class VisionFramework:
         """保存配置并重启系统"""
         old_snapshot = config.snapshot()
         self.stop()
-        try:
-            self.start()
-            self.display.show_fps = config.fps_display
+        result = self._safe_start(old_snapshot)
+        if result == "ok":
             self.display.flash_message("系统已重启")
-        except Exception as e:
-            log_error(e, "重启失败")
-            self._cleanup()
-            config.restore(old_snapshot)
-            try:
-                self.start()
-                self.display.flash_message("重启失败，已回退")
-            except Exception:
-                print("[CRITICAL] 系统无法启动，请重启程序")
+        elif result == "rolled_back":
+            self.display.flash_message("重启失败，已回退")
+        else:
+            print("[CRITICAL] 系统无法启动，请重启程序")
 
     # ─────────── 交互回调 ───────────
 

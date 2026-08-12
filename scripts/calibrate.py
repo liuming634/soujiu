@@ -39,7 +39,7 @@ def calibrate_from_image(image_path, output_file="calibration_data/homography.np
         print(f"[ERROR] 图像文件不存在: {image_path}")
         return False
 
-    print(f"\n📷 标定参数:")
+    print("\n📷 标定参数:")
     print(f"   图像路径: {image_path}")
     print(f"   角点数量: {pattern_size[0]} x {pattern_size[1]}")
     print(f"   方格边长: {square_size} m")

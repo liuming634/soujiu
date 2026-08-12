@@ -7,6 +7,8 @@ import re
 import sys
 import yaml
 
+from core.utils import px_to_ratio
+
 # 项目根目录（基于 core/config.py 的位置自动计算得到 souiju12/）
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -56,6 +58,9 @@ class Config:
         "fpv_key": "gs.key",
     }
 
+    # 配置持久化默认 YAML 文件名（save() 统一使用）
+    YAML_PATH = "camera_params.yaml"
+
     def __init__(self, config_file=None):
         """
         初始化配置
@@ -69,7 +74,23 @@ class Config:
         # 项目根目录（全局可访问，用于解析相对路径）
         self.PROJECT_ROOT = PROJECT_ROOT
 
-        # 默认配置（根据系统自动适配）
+        # 按分组初始化默认值
+        self._init_platform_defaults()
+        self._init_camera_defaults()
+        self._init_fpv_defaults()
+        self._init_gui_defaults()
+        self._init_file_path_defaults()
+
+        # 相机内参（标定后由外部工具写入）
+        self.camera_matrix = None
+        self.dist_coeffs = None
+
+        # 加载配置文件（如果提供）
+        if config_file and os.path.exists(config_file):
+            self._load_from_yaml(config_file)
+
+    def _init_platform_defaults(self):
+        """平台相关默认值（串口/相机索引/翻转方向/坐标协议换算）"""
         if self.is_windows:
             self.serial_port = "COM10"
             self.camera_id = 0  # Windows 默认摄像头
@@ -86,18 +107,18 @@ class Config:
         self.serial_prefix = 0x5678
         self.coordinate_scale = 1000      # 米→毫米缩放因子
         self.coordinate_offset = 5000      # 偏移量，使负坐标映射到协议的正数范围
+
+    def _init_camera_defaults(self):
+        """摄像头默认参数"""
         self.camera_width = 1920  # 摄像头宽度
         self.camera_height = 1080  # 摄像头高度
-
-        # ── 摄像头额外参数 (二) ──
         self.camera_fps = 30                     # 目标帧率
-        self.camera_scan_max_index = 10          # 枚举摄像头时的最大扫描索引
-        self.camera_fallback_width = 640         # 无摄像头时回退画面宽度
-        self.camera_fallback_height = 480        # 无摄像头时回退画面高度
         self.camera_fourcc = 'MJPG'              # 视频编码格式
+        self.camera_source = "usb"               # 信号源: "usb" 或 "fpv"
+        self.protocol_max_value = 9999           # 协议数据最大值 (0~9999)
 
-        # ── FPV 参数 ──
-        self.camera_source = "usb"                # 信号源: "usb" 或 "fpv"
+    def _init_fpv_defaults(self):
+        """FPV 图传默认参数"""
         self.fpv_channel = 161                    # FPV 信道
         self.fpv_channel_width = 20               # 信道宽度 (20/40/80)
         self.fpv_key = "gs.key"  # WFB 密钥文件路径（相对路径，resolve_path 解析）
@@ -107,10 +128,8 @@ class Config:
         self.fpv_height = 720                     # 视频高度
         self.fpv_fps = 120                        # 帧率
 
-        # ── 协议参数 ──
-        self.protocol_max_value = 9999           # 协议数据最大值 (0~9999)
-
-        # ── GUI 布局参数 (五) ──
+    def _init_gui_defaults(self):
+        """GUI 布局/抓取范围/偏差修正/预设列表默认参数"""
         self.gui_button_panel_width = 800
         self.gui_grid_button_size = 190
         self.gui_grid_rows = 3
@@ -154,27 +173,15 @@ class Config:
             "/dev/ttyACM0", "/dev/ttyACM1", "/dev/ttyS0",
         ]
 
-        self.homography_file = "calibration_data/homography.npy"
-        self.camera_matrix_file = "calibration_data/camera_matrix.npy"
-        self.dist_coeffs_file = "calibration_data/dist_coeffs.npy"
-
-        # 将所有文件路径统一规范化为相对路径（跨平台可移植）
-        self._normalize_file_paths()
-
-        # 相机内参（如果未提供则使用默认值）
-        self.camera_matrix = None
-        self.dist_coeffs = None
-
         # GUI 配置
         self.fps_display = True
         self.timer_interval = 30  # 毫秒
 
-        # 出厂默认值快照（录制于 YAML 加载前，用于差异比对）
-        self._defaults = {k: getattr(self, k) for k in self._YAML_PERSIST_KEYS}
-
-        # 加载配置文件（如果提供）
-        if config_file and os.path.exists(config_file):
-            self._load_from_yaml(config_file)
+    def _init_file_path_defaults(self):
+        """标定文件路径默认值，并统一规范化为项目相对路径（跨平台可移植）"""
+        for attr, default in self._DEFAULT_FILE_PATHS.items():
+            setattr(self, attr, default)
+        self._normalize_file_paths()
 
     def _normalize_file_paths(self):
         """将配置中的文件路径统一规范化为相对 PROJECT_ROOT 的路径
@@ -257,15 +264,13 @@ class Config:
             if data is None:
                 return
             # 旧版像素抓取范围 → 按配置分辨率换算为比例（-1 自动居中 → 0.5）
-            if "grab_range_x" in data and "grab_range_x_ratio" not in data:
-                self.grab_range_x_ratio = self._px_to_ratio(
-                    data["grab_range_x"], data.get("camera_width", self.camera_width))
-            if "grab_range_y" in data and "grab_range_y_ratio" not in data:
-                self.grab_range_y_ratio = self._px_to_ratio(
-                    data["grab_range_y"], data.get("camera_height", self.camera_height))
-            if "grab_range_radius" in data and "grab_range_radius_ratio" not in data:
-                self.grab_range_radius_ratio = self._px_to_ratio(
-                    data["grab_range_radius"], data.get("camera_width", self.camera_width))
+            for old_key, new_key, ref_key in (
+                    ("grab_range_x", "grab_range_x_ratio", "camera_width"),
+                    ("grab_range_y", "grab_range_y_ratio", "camera_height"),
+                    ("grab_range_radius", "grab_range_radius_ratio", "camera_width")):
+                if old_key in data and new_key not in data:
+                    setattr(self, new_key, px_to_ratio(
+                        data[old_key], data.get(ref_key, getattr(self, ref_key))))
             for key, value in data.items():
                 if isinstance(value, dict):
                     print(f"  [INFO] 跳过旧格式段 '{key}'，下次保存后自动更新")
@@ -294,27 +299,11 @@ class Config:
         except Exception as e:
             print(f"[WARNING] 加载配置文件失败: {e}，使用默认配置")
 
-    @staticmethod
-    def _px_to_ratio(px, ref_size) -> float:
-        """像素值 → 占画面比例 (0~1)；负值/无参考尺寸时回退 0.5"""
-        try:
-            px = float(px)
-        except (TypeError, ValueError):
-            return 0.5
-        if px < 0 or not ref_size or ref_size <= 0:
-            return 0.5
-        return max(0.0, min(1.0, px / float(ref_size)))
-
     def to_dict(self):
         """导出所有持久化配置项为字典"""
-        d = {}
-        # 文件路径属性已规范化为相对路径，直接导出即可（跨平台可移植）
-        for key in self._YAML_PERSIST_KEYS:
-            d[key] = getattr(self, key, None)
-        for extra in ['camera_fps', 'camera_scan_max_index', 'camera_fallback_width',
-                       'camera_fallback_height', 'camera_fourcc', 'protocol_max_value',
-                       'grid_crop_ratio']:
-            d[extra] = getattr(self, extra, None)
+        d = {key: getattr(self, key, None) for key in self._YAML_PERSIST_KEYS}
+        # 协议最大值未列入白名单（不持久化到 YAML），但快照/恢复需要覆盖
+        d["protocol_max_value"] = self.protocol_max_value
         return d
 
     # ─────────────── 事务安全（用于配置修改的回退） ───────────────
@@ -336,9 +325,6 @@ class Config:
         "camera_source": lambda v: v in ("usb", "fpv"),
         "fpv_channel": lambda v: isinstance(v, int) and 1 <= v <= 200,
         "camera_fps": lambda v: isinstance(v, int) and 1 <= v <= 120,
-        "camera_scan_max_index": lambda v: isinstance(v, int) and 1 <= v <= 99,
-        "camera_fallback_width": lambda v: isinstance(v, int) and 160 <= v <= 7680,
-        "camera_fallback_height": lambda v: isinstance(v, int) and 120 <= v <= 4320,
         "protocol_max_value": lambda v: isinstance(v, int) and 1 <= v <= 99999,
         "serial_baudrate": lambda v: v in [9600, 19200, 38400, 57600, 115200, 230400],
         "serial_timeout": lambda v: 0.01 <= v <= 10.0,
@@ -398,22 +384,9 @@ class Config:
         except Exception as e:
             print(f"[WARNING] 保存配置文件失败: {e}")
 
-    def get_camera_params(self):
-        """获取相机参数"""
-        if self.camera_matrix is None:
-            import numpy as np
-            # 默认相机内参
-            self.camera_matrix = np.array([
-                [1000, 0, self.camera_width / 2],
-                [0, 1000, self.camera_height / 2],
-                [0, 0, 1]
-            ], dtype=np.float32)
-
-        if self.dist_coeffs is None:
-            import numpy as np
-            self.dist_coeffs = np.zeros((4, 1), dtype=np.float32)
-
-        return self.camera_matrix, self.dist_coeffs
+    def save(self):
+        """将配置持久化到默认 YAML 文件（统一路径与异常处理）"""
+        self.save_to_yaml(self.resolve_path(self.YAML_PATH))
 
     def validate(self):
         """验证配置有效性"""
