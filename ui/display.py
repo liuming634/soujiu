@@ -13,6 +13,7 @@ from PyQt5.QtGui import QImage, QPixmap, QFont, QIcon, QPainter, QPen, QColor
 from core.config import config
 from core.utils import log_error, px_to_ratio
 from logic.interaction_manager import InteractionState
+from ui.stopwatch_widget import StopwatchWidget
 
 # QuickPopup 自动关闭延迟（毫秒）
 _POPUP_AUTO_CLOSE_MS = 750
@@ -37,53 +38,6 @@ class QuickPopup(QDialog):
             self.move(cp.x() - self.width() // 2, cp.y() - self.height() // 2)
         self.show()
         QTimer.singleShot(_POPUP_AUTO_CLOSE_MS, self.close)
-
-
-class FieldDiagram(QWidget):
-    """倒U路径路线图 — 静态线图，编号①~⑥"""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setFixedSize(140, 170)
-
-    def paintEvent(self, event):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-
-        w, h = self.width(), self.height()
-        m = 15
-
-        # 六个点坐标 (逆时针 ①→⑥)
-        mid_y = h * 55 // 100
-        pts = [
-            (m, h - m),        # ① 左下(起降)
-            (m, mid_y),        # ② 左中
-            (m, m + 8),        # ③ 左上(物资)
-            (w - m, m + 8),    # ④ 右上(待救)
-            (w - m, mid_y),    # ⑤ 右中
-            (w - m, h - m),    # ⑥ 右下(降落)
-        ]
-
-        # 框线 (白色细线)
-        p.setPen(QPen(QColor(180, 180, 180), 1))
-        for i in range(len(pts) - 1):
-            p.drawLine(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1])
-
-        # 编号圆圈（编号随 GUI 模式预设切换）
-        nums = config.GUI_PRESETS[config.gui_mode]["field_nums"]
-        font = QFont("Monospace", 8)
-        p.setFont(font)
-        for i, (x, y) in enumerate(pts):
-            p.setBrush(QColor(60, 60, 60))
-            p.setPen(QPen(QColor(180, 180, 180), 1))
-            p.drawEllipse(x - 8, y - 8, 16, 16)
-            p.setPen(QColor(180, 180, 180))
-            p.drawText(x - 4, y + 4, str(nums[i]))
-
-        # 底部 "飞手"
-        p.setPen(QColor(140, 140, 140))
-        p.setFont(QFont("Monospace", 10))
-        p.drawText(0, h - 16, w, 16, Qt.AlignCenter, "飞手")
 
 
 class GrabRangeBar(QWidget):
@@ -279,19 +233,19 @@ class VideoDisplay(QWidget):
         self.roi_preview_label.setStyleSheet("background-color: #333;")
         info_layout.addWidget(self.roi_preview_label)
 
-        # ── 路线图 ──
-        self.field_diagram = FieldDiagram()
-        info_layout.addWidget(self.field_diagram)
+        # ── 秒表显示（替换原路线图位置） ──
+        self.stopwatch_widget = StopwatchWidget()
+        info_layout.addWidget(self.stopwatch_widget)
 
-        # ── 抓取规则 + 分值 (合并宽条) ──
+        # ── 得分说明（仅保留分值，去掉抓取规则） ──
         self.rules_label = QLabel()
         self.rules_label.setFixedSize(700, 100)
         self.rules_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         self.rules_label.setStyleSheet("color: #ccc; background-color: #2a2a2a; padding: 6px;")
         self.rules_label.setFont(QFont("Monospace", 11))
         self.rules_label.setText(
-            "抓取: 魔方🔄台球交替(台球完→全魔方)   │  魔→a:10  │  b区:黄20 绿30 棕40\n"
-            "若抓错→本次无效 重新按顺序来           │  蓝50 粉60 黑70"
+            "得分: 魔→a:10   │   b区:黄20 绿30 棕40\n"
+            "蓝50 粉60 黑70"
         )
         info_layout.addWidget(self.rules_label)
 
@@ -330,6 +284,10 @@ class VideoDisplay(QWidget):
         """在状态栏显示临时消息（3秒后消失）"""
         self._flash_message = msg
         self._flash_time = time.time()
+
+    def tick_stopwatch(self):
+        """每帧调用，实时刷新秒表显示（仅运行中更新）"""
+        self.stopwatch_widget.tick()
 
     def add_sys_button(self, text, callback, tooltip=None):
         """在顶部状态栏添加一个系统按钮（自动排列为2列）"""
@@ -744,8 +702,6 @@ class VideoDisplay(QWidget):
                 self.grid_buttons.append(btn)
 
         self._update_mode_button()
-        if getattr(self, "field_diagram", None):
-            self.field_diagram.update()
 
     def _grid_button_size(self):
         """截图格子按钮尺寸（按当前面板宽度计算）"""

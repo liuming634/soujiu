@@ -274,6 +274,7 @@ class VisionFramework:
                 self.display.update_frame(blank)
                 if self.interaction:
                     self.display.update_all(self.interaction.get_state())
+                self.display.tick_stopwatch()
                 return
 
             # 读帧（CameraManager 内部自动处理重试，失败也返回占位帧）
@@ -297,6 +298,7 @@ class VisionFramework:
             if self.interaction is not None:
                 self.display.update_all(self.interaction.get_state())
             self.display.update_frame(frame)
+            self.display.tick_stopwatch()
 
         except Exception as e:
             log_error(e, "帧处理失败")
