@@ -147,7 +147,7 @@ class InteractionManager:
         self._cancel_resend()
 
     def confirm_send(self):
-        """空格键确认：发送缓存的待发送数据（连续发送 2 秒，后台线程执行）"""
+        """空格键确认：发送缓存的待发送数据（连续发送，时长见配置 serial_send_duration，后台线程执行）"""
         pending = self.data.pending_proto
         if pending is None:
             self._warn("没有待发数据，请先按数字键打包")

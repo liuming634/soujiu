@@ -189,6 +189,21 @@ class SettingsDialog(QDialog):
         self.timeout_spin.setSuffix(" 秒")
         layout.addRow("超时:", self.timeout_spin)
 
+        # ── 连续发送参数 ──
+        self.send_duration_spin = QDoubleSpinBox()
+        self.send_duration_spin.setRange(0.01, 10.0)
+        self.send_duration_spin.setSingleStep(0.05)
+        self.send_duration_spin.setDecimals(2)
+        self.send_duration_spin.setSuffix(" 秒")
+        layout.addRow("发送时长:", self.send_duration_spin)
+
+        self.send_interval_spin = QDoubleSpinBox()
+        self.send_interval_spin.setRange(0.001, 1.0)
+        self.send_interval_spin.setSingleStep(0.01)
+        self.send_interval_spin.setDecimals(3)
+        self.send_interval_spin.setSuffix(" 秒")
+        layout.addRow("发送间隔:", self.send_interval_spin)
+
         # ── 协议前缀 ──
         self.prefix_edit = QLineEdit()
         self.prefix_edit.setPlaceholderText("例如: 0x5678")
@@ -362,6 +377,8 @@ class SettingsDialog(QDialog):
             self.baudrate_combo.setEditText(str(config.serial_baudrate))
 
         self.timeout_spin.setValue(config.serial_timeout)
+        self.send_duration_spin.setValue(config.serial_send_duration)
+        self.send_interval_spin.setValue(config.serial_send_interval)
 
         # 协议前缀
         self.prefix_edit.setText(hex(config.serial_prefix))
@@ -412,6 +429,8 @@ class SettingsDialog(QDialog):
             "serial_baudrate": int(self.baudrate_combo.currentData()
                                    or self.baudrate_combo.currentText()),
             "serial_timeout": self.timeout_spin.value(),
+            "serial_send_duration": self.send_duration_spin.value(),
+            "serial_send_interval": self.send_interval_spin.value(),
             "serial_prefix": int(prefix_raw, 16) if prefix_raw else config.serial_prefix,
             # 标定路径
             "homography_file": self._file_edits["homography_file"].text().strip(),

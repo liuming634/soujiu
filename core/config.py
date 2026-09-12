@@ -33,6 +33,7 @@ class Config:
     # 可持久化到 YAML 的配置项白名单（与 GUI 设置对话框保持同步）
     _YAML_PERSIST_KEYS = {
         "serial_port", "serial_baudrate", "serial_timeout", "serial_prefix",
+        "serial_send_duration", "serial_send_interval",
         "camera_id", "camera_width", "camera_height",
         "camera_fps", "camera_fourcc", "grid_crop_ratio",
         "camera_vflip", "camera_hflip",
@@ -105,6 +106,8 @@ class Config:
         self.serial_baudrate = 9600
         self.serial_timeout = 0.1
         self.serial_prefix = 0x5678
+        self.serial_send_duration = 0.5   # 空格确认后的连续发送时长（秒）
+        self.serial_send_interval = 0.01  # 连续发送间隔（秒）
         self.coordinate_scale = 1000      # 米→毫米缩放因子
         self.coordinate_offset = 5000      # 偏移量，使负坐标映射到协议的正数范围
 
@@ -328,6 +331,8 @@ class Config:
         "protocol_max_value": lambda v: isinstance(v, int) and 1 <= v <= 99999,
         "serial_baudrate": lambda v: v in [9600, 19200, 38400, 57600, 115200, 230400],
         "serial_timeout": lambda v: 0.01 <= v <= 10.0,
+        "serial_send_duration": lambda v: isinstance(v, (int, float)) and 0.01 <= v <= 10.0,
+        "serial_send_interval": lambda v: isinstance(v, (int, float)) and 0.001 <= v <= 1.0,
         "serial_prefix": lambda v: isinstance(v, int) and 0x0000 <= v <= 0xFFFF,
         "timer_interval": lambda v: 10 <= v <= 1000,
         "coordinate_scale": lambda v: 1 <= v <= 100000,

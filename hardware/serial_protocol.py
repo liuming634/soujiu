@@ -136,9 +136,11 @@ class SerialComm:
     # ─────── 连续发送：duration 秒内持续重发（效果由操作员通过摄像头确认） ───────
 
     def send_data_repeat(self, data1: int, data2: int, data3: int, data4: int = 0,
-                         duration: float = 2.0, interval: float = 0.08,
+                         duration: float = None, interval: float = None,
                          cancel_event: threading.Event = None) -> bool:
         """连续发送：duration 秒内每隔 interval 秒发送一次，不等待、不处理回传
+
+        duration/interval 缺省时取配置 serial_send_duration / serial_send_interval。
 
         :param duration: 总发送时长（秒）
         :param interval: 发送间隔（秒）
@@ -148,6 +150,10 @@ class SerialComm:
         try:
             from core.config import config
             prefix = config.serial_prefix.to_bytes(2, 'big')
+            if duration is None:
+                duration = config.serial_send_duration
+            if interval is None:
+                interval = config.serial_send_interval
             frame = self.protocol.pack(data1, data2, data3, data4, prefix=prefix)
         except Exception as e:
             print(f"打包失败: {e}")
