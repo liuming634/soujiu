@@ -2,6 +2,8 @@
 串口通信协议模块
 """
 import re
+import time
+import threading
 import serial
 import sys
 import os
@@ -130,3 +132,44 @@ class SerialComm:
         """关闭串口"""
         if self.ser and self.ser.is_open:
             self.ser.close()
+
+    # ─────── 连续发送：duration 秒内持续重发（效果由操作员通过摄像头确认） ───────
+
+    def send_data_repeat(self, data1: int, data2: int, data3: int, data4: int = 0,
+                         duration: float = 2.0, interval: float = 0.08,
+                         cancel_event: threading.Event = None) -> bool:
+        """连续发送：duration 秒内每隔 interval 秒发送一次，不等待、不处理回传
+
+        :param duration: 总发送时长（秒）
+        :param interval: 发送间隔（秒）
+        :param cancel_event: 外部取消事件（可选）
+        :return: True=发送完成，False=被取消/发送异常
+        """
+        try:
+            from core.config import config
+            prefix = config.serial_prefix.to_bytes(2, 'big')
+            frame = self.protocol.pack(data1, data2, data3, data4, prefix=prefix)
+        except Exception as e:
+            print(f"打包失败: {e}")
+            self._connected = False
+            return False
+
+        stop_at = time.time() + duration
+        attempt = 0
+        try:
+            while time.time() < stop_at:
+                if cancel_event is not None and cancel_event.is_set():
+                    print("   [发送已取消]")
+                    return False
+                attempt += 1
+                self.ser.write(frame)
+                print(f"   [串口发送 #{attempt}] X={data1}, Y={data2}, N={data3}, 右键X={data4}")
+                remaining = stop_at - time.time()
+                if remaining > 0:
+                    time.sleep(min(interval, remaining))
+            print(f"   ✓ 连续发送完成 (共 {attempt} 次)")
+            return True
+        except Exception as e:
+            print(f"发送失败: {e}")
+            self._connected = False
+            return False

@@ -5,6 +5,7 @@
 """
 from dataclasses import dataclass
 from typing import Optional
+import threading
 
 from core.config import config
 from core.utils import log_error
@@ -53,6 +54,8 @@ class InteractionManager:
         self.mapper = mapper
         self.comm = comm
         self._flash_warning: str | None = None
+        self._resend_cancel: threading.Event | None = None  # 取消当前重发线程
+        self._resend_thread: threading.Thread | None = None
 
     # ─────── 帧数据输入 ───────
 
@@ -140,9 +143,11 @@ class InteractionManager:
         # 缓存待发送数据（不立即发送）
         self.data.set_pending_proto(x_proto, y_proto, n, rx_proto)
         print(f"   已打包: X={x_proto}, Y={y_proto}, N={n} (按空格发送)")
+        # 打包新数据前若还有旧的连续发送在跑，直接取消
+        self._cancel_resend()
 
     def confirm_send(self):
-        """空格键确认：发送缓存的待发送数据"""
+        """空格键确认：发送缓存的待发送数据（连续发送 2 秒，后台线程执行）"""
         pending = self.data.pending_proto
         if pending is None:
             self._warn("没有待发数据，请先按数字键打包")
@@ -153,10 +158,33 @@ class InteractionManager:
         self.data.clear_pending_proto()
 
         if self.comm:
-            self.comm.send_data(x_proto, y_proto, n, rx_proto)
-            print(f"   串口发送: X={x_proto}, Y={y_proto}, N={n}, 右键X={rx_proto}")
+            # 后台线程执行连续发送，不阻塞 UI
+            self._cancel_resend()  # 取消可能仍在进行的旧发送
+            cancel_event = threading.Event()
+            self._resend_cancel = cancel_event
+            self._resend_thread = threading.Thread(
+                target=self._repeat_send_worker,
+                args=(x_proto, y_proto, n, rx_proto, cancel_event),
+                daemon=True)
+            self._resend_thread.start()
         else:
             print(f"   [串口不可用] 协议数据: X={x_proto}, Y={y_proto}, N={n}, 右键X={rx_proto}")
+
+    def _repeat_send_worker(self, x_proto, y_proto, n, rx_proto, cancel_event):
+        """连续发送工作线程：duration 秒内持续重发，不处理回传"""
+        try:
+            self.comm.send_data_repeat(
+                x_proto, y_proto, n, rx_proto, cancel_event=cancel_event)
+        except Exception as e:
+            log_error(e, "连续发送线程异常")
+
+    def _cancel_resend(self):
+        """取消当前正在进行的连续发送任务"""
+        if self._resend_cancel is not None and self._resend_thread is not None \
+                and self._resend_thread.is_alive():
+            self._resend_cancel.set()
+            self._resend_thread = None
+            self._resend_cancel = None
 
     # ─────── 状态输出（从 RuntimeData 读取） ───────
 
