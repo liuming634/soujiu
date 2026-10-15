@@ -4,3 +4,4 @@ PyQt5==5.15.6
 PyYAML==5.4.1
 pyserial==3.5
 pybind11>=2.10.0
+ultralytics

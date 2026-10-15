@@ -52,6 +52,19 @@ class RuntimeData:
         self.actuator_state = None             # ActuatorState（auto/actuator/state.py）
         self.actuator_state_time: float = 0.0  # 最近一帧入库时间戳（入库时打）
 
+        # ============================================================
+        # 自动链路：识别结果（每次抓取行为前刷新覆盖）
+        # ============================================================
+        self.cube_list: list = []         # 识别到的魔方（DetectedObject，按ROI中点x从左到右编号从1开始）
+        self.ball_list: list = []         # 识别到的球（编号规则同上，与魔方分开编号）
+        self.detection_time: float = 0.0  # 最近一次识别入库时间戳（入库时打）
+
+        # ============================================================
+        # 自动链路：投放桶识别结果（球投放用，识别一次刷新一次）
+        # ============================================================
+        self.bucket_list: list = []    # 识别到的投放桶（BucketObject：bbox/center）
+        self.bucket_time: float = 0.0  # 最近一次桶识别入库时间戳（入库时打）
+
     # ──────────────────────── 帧数据 ────────────────────────
 
     def set_frame(self, frame):
@@ -103,6 +116,19 @@ class RuntimeData:
         self.actuator_state = state
         self.actuator_state_time = time.time()
 
+    # ──────────────────────── 自动链路：识别结果 ────────────────────────
+
+    def set_detections(self, cube_list: list, ball_list: list):
+        """刷新识别结果（魔方/球两个列表整体覆盖；存入时统一打时间戳）"""
+        self.cube_list = cube_list
+        self.ball_list = ball_list
+        self.detection_time = time.time()
+
+    def set_buckets(self, bucket_list: list):
+        """刷新投放桶识别结果（整体覆盖；存入时统一打时间戳）"""
+        self.bucket_list = bucket_list
+        self.bucket_time = time.time()
+
     # ──────────────────────── 全局重置 ────────────────────────
 
     def reset_all(self):
@@ -121,3 +147,10 @@ class RuntimeData:
 
         self.actuator_state = None
         self.actuator_state_time = 0.0
+
+        self.cube_list = []
+        self.ball_list = []
+        self.detection_time = 0.0
+
+        self.bucket_list = []
+        self.bucket_time = 0.0
