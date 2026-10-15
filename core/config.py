@@ -37,8 +37,7 @@ class Config:
         "camera_id", "camera_width", "camera_height",
         "camera_fps", "camera_fourcc", "grid_crop_ratio",
         "camera_vflip", "camera_hflip",
-        "camera_source", "fpv_channel", "fpv_channel_width", "fpv_key", "fpv_link_id",
-        "fpv_codec", "fpv_width", "fpv_height", "fpv_fps",
+        "camera_source",
         "homography_file", "camera_matrix_file", "dist_coeffs_file",
         "timer_interval", "coordinate_scale", "coordinate_offset",
         "fps_display",
@@ -56,7 +55,6 @@ class Config:
         "homography_file": "calibration_data/homography.npy",
         "camera_matrix_file": "calibration_data/camera_matrix.npy",
         "dist_coeffs_file": "calibration_data/dist_coeffs.npy",
-        "fpv_key": "gs.key",
     }
 
     # 配置持久化默认 YAML 文件名（save() 统一使用）
@@ -78,7 +76,6 @@ class Config:
         # 按分组初始化默认值
         self._init_platform_defaults()
         self._init_camera_defaults()
-        self._init_fpv_defaults()
         self._init_gui_defaults()
         self._init_file_path_defaults()
 
@@ -106,7 +103,7 @@ class Config:
         self.serial_baudrate = 9600
         self.serial_timeout = 0.1
         self.serial_prefix = 0x5678
-        self.serial_send_duration = 0.5   # 空格确认后的连续发送时长（秒）
+        self.serial_send_duration = 0.2   # 空格确认后的连续发送时长（秒）
         self.serial_send_interval = 0.01  # 连续发送间隔（秒）
         self.coordinate_scale = 1000      # 米→毫米缩放因子
         self.coordinate_offset = 5000      # 偏移量，使负坐标映射到协议的正数范围
@@ -117,19 +114,8 @@ class Config:
         self.camera_height = 1080  # 摄像头高度
         self.camera_fps = 30                     # 目标帧率
         self.camera_fourcc = 'MJPG'              # 视频编码格式
-        self.camera_source = "usb"               # 信号源: "usb" 或 "fpv"
+        self.camera_source = "usb"               # 信号源
         self.protocol_max_value = 9999           # 协议数据最大值 (0~9999)
-
-    def _init_fpv_defaults(self):
-        """FPV 图传默认参数"""
-        self.fpv_channel = 161                    # FPV 信道
-        self.fpv_channel_width = 20               # 信道宽度 (20/40/80)
-        self.fpv_key = "gs.key"  # WFB 密钥文件路径（相对路径，resolve_path 解析）
-        self.fpv_link_id = 7669206                # WFB 链路 ID（防串信号）
-        self.fpv_codec = "h265"                   # 视频编码: h264/h265
-        self.fpv_width = 1280                     # 视频宽度
-        self.fpv_height = 720                     # 视频高度
-        self.fpv_fps = 120                        # 帧率
 
     def _init_gui_defaults(self):
         """GUI 布局/抓取范围/偏差修正/预设列表默认参数"""
@@ -325,8 +311,7 @@ class Config:
         "camera_id": lambda v: isinstance(v, int) and 0 <= v <= 99,
         "camera_width": lambda v: isinstance(v, int) and 160 <= v <= 7680,
         "camera_height": lambda v: isinstance(v, int) and 120 <= v <= 4320,
-        "camera_source": lambda v: v in ("usb", "fpv"),
-        "fpv_channel": lambda v: isinstance(v, int) and 1 <= v <= 200,
+        "camera_source": lambda v: v in ("usb",),
         "camera_fps": lambda v: isinstance(v, int) and 1 <= v <= 120,
         "protocol_max_value": lambda v: isinstance(v, int) and 1 <= v <= 99999,
         "serial_baudrate": lambda v: v in [9600, 19200, 38400, 57600, 115200, 230400],

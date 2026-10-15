@@ -69,7 +69,6 @@ class SettingsDialog(QDialog):
         # ── 信号源 ──
         self.source_combo = QComboBox()
         self.source_combo.addItem("USB 摄像头", "usb")
-        self.source_combo.addItem("FPV 图传 (RTL8812AU)", "fpv")
         layout.addRow("信号源:", self.source_combo)
 
         # ── 相机索引 ──
@@ -117,48 +116,6 @@ class SettingsDialog(QDialog):
         flip_layout.addWidget(self.camera_hflip_check)
         flip_layout.addStretch(1)
         layout.addRow("画面方向:", flip_layout)
-
-        # ── FPV 参数 ──
-        sep = QLabel("──── FPV 图传参数 ────")
-        sep.setStyleSheet("color: gray;")
-        layout.addRow("", sep)
-
-        self.fpv_channel_spin = QSpinBox()
-        self.fpv_channel_spin.setRange(1, 200)
-        layout.addRow("FPV 信道:", self.fpv_channel_spin)
-
-        self.fpv_cw_combo = QComboBox()
-        self.fpv_cw_combo.addItem("20 MHz", 20)
-        self.fpv_cw_combo.addItem("40 MHz", 40)
-        self.fpv_cw_combo.addItem("80 MHz", 80)
-        layout.addRow("信道宽度:", self.fpv_cw_combo)
-
-        self.fpv_key_edit = QLineEdit()
-        self.fpv_key_edit.setPlaceholderText("gs.key 文件路径")
-        layout.addRow("密钥文件:", self.fpv_key_edit)
-
-        self.fpv_link_id_spin = QSpinBox()
-        self.fpv_link_id_spin.setRange(0, 99999999)
-        layout.addRow("链路 ID:", self.fpv_link_id_spin)
-
-        self.fpv_codec_combo = QComboBox()
-        self.fpv_codec_combo.addItem("H.265", "h265")
-        self.fpv_codec_combo.addItem("H.264", "h264")
-        layout.addRow("FPV 编码:", self.fpv_codec_combo)
-
-        self.fpv_w_spin = QSpinBox()
-        self.fpv_w_spin.setRange(320, 3840)
-        self.fpv_w_spin.setSingleStep(16)
-        layout.addRow("FPV 宽度:", self.fpv_w_spin)
-
-        self.fpv_h_spin = QSpinBox()
-        self.fpv_h_spin.setRange(240, 2160)
-        self.fpv_h_spin.setSingleStep(16)
-        layout.addRow("FPV 高度:", self.fpv_h_spin)
-
-        self.fpv_fps_spin = QSpinBox()
-        self.fpv_fps_spin.setRange(30, 240)
-        layout.addRow("FPV 帧率:", self.fpv_fps_spin)
 
         self.tabs.addTab(tab, "相机")
 
@@ -349,20 +306,6 @@ class SettingsDialog(QDialog):
         self.camera_vflip_check.setChecked(config.camera_vflip)
         self.camera_hflip_check.setChecked(config.camera_hflip)
 
-        # FPV
-        self.fpv_channel_spin.setValue(config.fpv_channel)
-        cw_idx = self.fpv_cw_combo.findData(config.fpv_channel_width)
-        if cw_idx >= 0:
-            self.fpv_cw_combo.setCurrentIndex(cw_idx)
-        self.fpv_key_edit.setText(config.fpv_key)
-        self.fpv_link_id_spin.setValue(config.fpv_link_id)
-        codec_idx = self.fpv_codec_combo.findData(config.fpv_codec)
-        if codec_idx >= 0:
-            self.fpv_codec_combo.setCurrentIndex(codec_idx)
-        self.fpv_w_spin.setValue(config.fpv_width)
-        self.fpv_h_spin.setValue(config.fpv_height)
-        self.fpv_fps_spin.setValue(config.fpv_fps)
-
         # 串口
         port_idx = self.port_combo.findText(config.serial_port)
         if port_idx >= 0:
@@ -415,15 +358,6 @@ class SettingsDialog(QDialog):
             "camera_fourcc": self.camera_fourcc_combo.currentData(),
             "camera_vflip": self.camera_vflip_check.isChecked(),
             "camera_hflip": self.camera_hflip_check.isChecked(),
-            # FPV
-            "fpv_channel": self.fpv_channel_spin.value(),
-            "fpv_channel_width": self.fpv_cw_combo.currentData(),
-            "fpv_key": self.fpv_key_edit.text().strip(),
-            "fpv_link_id": self.fpv_link_id_spin.value(),
-            "fpv_codec": self.fpv_codec_combo.currentData(),
-            "fpv_width": self.fpv_w_spin.value(),
-            "fpv_height": self.fpv_h_spin.value(),
-            "fpv_fps": self.fpv_fps_spin.value(),
             # 串口
             "serial_port": self.port_combo.currentText().strip(),
             "serial_baudrate": int(self.baudrate_combo.currentData()

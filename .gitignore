@@ -9,5 +9,4 @@ dist/
 *.dll
 *.lib
 *.exp
-fpv4win/
 *.egg-info

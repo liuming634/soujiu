@@ -17,7 +17,6 @@
     └── SerialComm         串口通信
 """
 import sys
-import os
 
 if sys.platform.startswith("win"):
     for _stream in (sys.stdout, sys.stderr):
@@ -25,17 +24,6 @@ if sys.platform.startswith("win"):
             _stream.reconfigure(encoding='utf-8', errors='replace')
         except Exception:
             pass
-
-# 强制先加载 fpv_rx 扩展，避免 DLL 加载顺序冲突（扩展缺失时优雅跳过）
-_fpv_rx_dir = os.path.abspath(os.path.join(
-    os.path.dirname(__file__), 'extern', 'fpv_rx', 'bin',
-    'windows' if sys.platform.startswith('win') else 'linux'))
-if _fpv_rx_dir not in sys.path:
-    sys.path.insert(0, _fpv_rx_dir)
-try:
-    import fpv_rx
-except (ImportError, OSError):
-    fpv_rx = None
 
 import cv2
 import numpy as np
@@ -45,7 +33,6 @@ from PyQt5.QtCore import QTimer, Qt
 from core.config import config
 from core.utils import log_error
 from hardware.camera import CameraManager
-from hardware.fpv_receiver import FpvReceiver
 from logic.coordinate_mapper import PixelToPlaneMapper
 from hardware.serial_protocol import SerialComm
 from core.runtime_data import RuntimeData
@@ -105,30 +92,12 @@ class VisionFramework:
         """初始化全部硬件并启动处理循环"""
         print("\n🔧 初始化硬件...")
         try:
-            # 1. 根据信号源设置创建摄像头
-            if config.camera_source == "fpv":
-                self.camera = FpvReceiver()
-                ok = self.camera.open(
-                    vid_pid=FpvReceiver.VID_PID,
-                    channel=config.fpv_channel,
-                    channel_width=config.fpv_channel_width,
-                    key_path=config.resolve_path(config.fpv_key),
-                    link_id=config.fpv_link_id,
-                    codec=config.fpv_codec,
-                    video_width=config.fpv_width,
-                    video_height=config.fpv_height,
-                    fps=config.fpv_fps,
-                )
-                if ok:
-                    print(f"✅ FPV 接收器初始化成功 (信道 {config.fpv_channel})")
-                else:
-                    print("  [WARNING] FPV 接收器初始化失败，可在「系统设置」中配置")
+            # 1. 创建摄像头
+            self.camera = CameraManager()
+            if self.camera.is_available():
+                print("✅ 摄像头初始化成功")
             else:
-                self.camera = CameraManager()
-                if self.camera.is_available():
-                    print("✅ 摄像头初始化成功")
-                else:
-                    print("  [WARNING] 摄像头不可用，可在「系统设置」中配置")
+                print("  [WARNING] 摄像头不可用，可在「系统设置」中配置")
 
             # 2. 创建坐标映射器
             mapper = None
@@ -280,7 +249,7 @@ class VisionFramework:
             # 读帧（CameraManager 内部自动处理重试，失败也返回占位帧）
             ret, frame = self.camera.read_undistorted_frame()
 
-            # 真实帧到达时同步坐标映射图像尺寸（USB / FPV 共用同一链路）
+            # 真实帧到达时同步坐标映射图像尺寸
             if ret and self.interaction is not None and self.interaction.mapper is not None:
                 try:
                     self.interaction.mapper.ensure_image_size(frame.shape[1], frame.shape[0])

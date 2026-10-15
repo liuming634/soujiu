@@ -90,7 +90,7 @@ class Undistorter:
 
 
 class UndistortMixin:
-    """去畸变集成 mixin：CameraManager 与 FpvReceiver 共用，保证两条采集路线接口一致。
+    """去畸变集成 mixin：供采集类（CameraManager 等）复用，统一采集路线接口。
 
     要求子类：
       - 定义 read_frame()，返回 (success, frame)

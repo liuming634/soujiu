@@ -1,4 +1,0 @@
-{
-    "cmake.sourceDirectory": "${workspaceFolder}/fpv4win",
-    "python-envs.defaultEnvManager": "ms-python.python:system"
-}

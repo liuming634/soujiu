@@ -473,7 +473,7 @@ class VideoDisplay(QWidget):
             r = int(round(config.grab_range_radius_ratio * w))
             if r <= 0:
                 return
-            color = (255, 255, 255)  # 白色 BGR
+            color = (0, 0, 255)  # 红色 BGR
             cv2.circle(frame, (cx, cy), r, color, 1)
             cv2.circle(frame, (cx, cy), 3, color, -1)
         except Exception as e:
