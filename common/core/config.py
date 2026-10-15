@@ -45,6 +45,12 @@ class Config:
         "show_overlays",
         "gui_mode",
         "coord_offset_x_mm", "coord_offset_y_mm",
+        "cube_score_weight_distance", "cube_score_weight_density",
+        "ball_score_weight_distance", "ball_score_weight_color",
+        "ball_score_weight_density",
+        "score_distance_plateau", "score_density_radius_px",
+        "ball_score_black", "ball_score_brown", "ball_score_pink",
+        "ball_score_blue", "ball_score_yellow", "ball_score_green",
     }
 
     # Windows 盘符绝对路径，如 d:/code/...（在 Linux 上 os.path.isabs 判断为 False）
@@ -77,6 +83,7 @@ class Config:
         self._init_platform_defaults()
         self._init_camera_defaults()
         self._init_gui_defaults()
+        self._init_scoring_defaults()
         self._init_file_path_defaults()
 
         # 相机内参（标定后由外部工具写入）
@@ -165,6 +172,30 @@ class Config:
         # GUI 配置
         self.fps_display = True
         self.timer_interval = 30  # 毫秒
+
+    def _init_scoring_defaults(self):
+        """自动链路评分参数（魔方/球分开评分，全部可调）
+
+        默认全部等权/等分为占位值（不做任何倾向），实际比例在使用中调整；
+        可通过设置界面"评分权重"页或 YAML 修改。
+        """
+        # 各因子权重（加权求和）
+        self.cube_score_weight_distance = 1.0   # 魔方-距离因子
+        self.cube_score_weight_density = 1.0    # 魔方-密集因子
+        self.ball_score_weight_distance = 1.0   # 球-距离因子
+        self.ball_score_weight_color = 1.0      # 球-颜色因子
+        self.ball_score_weight_density = 1.0    # 球-密集因子
+        # 距离因子：抓取圈半径的该比例以内同分，以外线性递减到圆边界为 0
+        self.score_distance_plateau = 0.8
+        # 密集因子：以 ROI 中点画圆统计其他魔方中点的半径（像素）
+        self.score_density_radius_px = 150
+        # 各颜色球的颜色分（占位等值，自行调整）
+        self.ball_score_black = 1.0
+        self.ball_score_brown = 1.0
+        self.ball_score_pink = 1.0
+        self.ball_score_blue = 1.0
+        self.ball_score_yellow = 1.0
+        self.ball_score_green = 1.0
 
     def _init_file_path_defaults(self):
         """标定文件路径默认值，并统一规范化为项目相对路径（跨平台可移植）"""
@@ -307,6 +338,9 @@ class Config:
             if hasattr(self, key):
                 setattr(self, key, value)
 
+    # 评分权重/颜色分统一校验（0~10，等权占位可调）
+    _weight_ok = lambda v: isinstance(v, (int, float)) and 0.0 <= v <= 10.0
+
     _VALIDATORS = {
         "camera_id": lambda v: isinstance(v, int) and 0 <= v <= 99,
         "camera_width": lambda v: isinstance(v, int) and 160 <= v <= 7680,
@@ -329,6 +363,19 @@ class Config:
         "gui_mode": lambda v: v in ("3", "6"),
         "coord_offset_x_mm": lambda v: isinstance(v, (int, float)) and -10000.0 <= v <= 10000.0,
         "coord_offset_y_mm": lambda v: isinstance(v, (int, float)) and -10000.0 <= v <= 10000.0,
+        "cube_score_weight_distance": _weight_ok,
+        "cube_score_weight_density": _weight_ok,
+        "ball_score_weight_distance": _weight_ok,
+        "ball_score_weight_color": _weight_ok,
+        "ball_score_weight_density": _weight_ok,
+        "score_distance_plateau": lambda v: isinstance(v, (int, float)) and 0.0 <= v <= 1.0,
+        "score_density_radius_px": lambda v: isinstance(v, (int, float)) and 1 <= v <= 5000,
+        "ball_score_black": _weight_ok,
+        "ball_score_brown": _weight_ok,
+        "ball_score_pink": _weight_ok,
+        "ball_score_blue": _weight_ok,
+        "ball_score_yellow": _weight_ok,
+        "ball_score_green": _weight_ok,
     }
 
     def validate_param(self, key: str, value) -> bool:

@@ -49,6 +49,7 @@ class SettingsDialog(QDialog):
         self._create_calibration_tab()
         self._create_general_tab()
         self._create_grab_range_tab()
+        self._create_scoring_tab()
 
         # 底部按钮
         buttons = QDialogButtonBox(
@@ -241,6 +242,51 @@ class SettingsDialog(QDialog):
 
         self.tabs.addTab(tab, "抓取范围")
 
+    def _create_scoring_tab(self):
+        """自动链路评分权重设置选项卡"""
+        tab = QWidget()
+        layout = QFormLayout(tab)
+
+        hint = QLabel("魔方/球分开评分，各因子加权求和；默认等权为占位值，比例自行调整。"
+                      "距离因子在抓取圈半径的同分区间比例以内不区分远近，以外线性递减到边界为 0。")
+        hint.setStyleSheet("color: gray;")
+        hint.setWordWrap(True)
+        layout.addRow("", hint)
+
+        def add_weight(label):
+            spin = QDoubleSpinBox()
+            spin.setRange(0.0, 10.0)
+            spin.setSingleStep(0.1)
+            spin.setDecimals(2)
+            layout.addRow(label, spin)
+            return spin
+
+        self.cube_w_dist_spin = add_weight("魔方-距离权重:")
+        self.cube_w_dens_spin = add_weight("魔方-密集权重:")
+        self.ball_w_dist_spin = add_weight("球-距离权重:")
+        self.ball_w_color_spin = add_weight("球-颜色权重:")
+        self.ball_w_dens_spin = add_weight("球-密集权重:")
+
+        self.plateau_spin = QDoubleSpinBox()
+        self.plateau_spin.setRange(0.0, 1.0)
+        self.plateau_spin.setSingleStep(0.05)
+        self.plateau_spin.setDecimals(2)
+        layout.addRow("距离同分区间(×半径):", self.plateau_spin)
+
+        self.dens_radius_spin = QSpinBox()
+        self.dens_radius_spin.setRange(1, 5000)
+        self.dens_radius_spin.setSuffix(" px")
+        layout.addRow("密集统计半径(ROI中点):", self.dens_radius_spin)
+
+        self.ball_black_spin = add_weight("黑球颜色分:")
+        self.ball_brown_spin = add_weight("棕球颜色分:")
+        self.ball_pink_spin = add_weight("粉球颜色分:")
+        self.ball_blue_spin = add_weight("蓝球颜色分:")
+        self.ball_yellow_spin = add_weight("黄球颜色分:")
+        self.ball_green_spin = add_weight("绿球颜色分:")
+
+        self.tabs.addTab(tab, "评分权重")
+
     # ──────────────────────────── 辅助方法 ────────────────────────────
 
     def _add_file_row(self, layout, label, key, default):
@@ -343,6 +389,21 @@ class SettingsDialog(QDialog):
         self.grab_y_spin.setValue(config.grab_range_y_ratio)
         self.grab_r_spin.setValue(config.grab_range_radius_ratio)
 
+        # 评分权重
+        self.cube_w_dist_spin.setValue(config.cube_score_weight_distance)
+        self.cube_w_dens_spin.setValue(config.cube_score_weight_density)
+        self.ball_w_dist_spin.setValue(config.ball_score_weight_distance)
+        self.ball_w_color_spin.setValue(config.ball_score_weight_color)
+        self.ball_w_dens_spin.setValue(config.ball_score_weight_density)
+        self.plateau_spin.setValue(config.score_distance_plateau)
+        self.dens_radius_spin.setValue(int(config.score_density_radius_px))
+        self.ball_black_spin.setValue(config.ball_score_black)
+        self.ball_brown_spin.setValue(config.ball_score_brown)
+        self.ball_pink_spin.setValue(config.ball_score_pink)
+        self.ball_blue_spin.setValue(config.ball_score_blue)
+        self.ball_yellow_spin.setValue(config.ball_score_yellow)
+        self.ball_green_spin.setValue(config.ball_score_green)
+
     def _collect_values(self):
         """收集对话框中所有配置值，返回 dict"""
         from common.core.config import config
@@ -380,6 +441,20 @@ class SettingsDialog(QDialog):
             "grab_range_x_ratio": self.grab_x_spin.value(),
             "grab_range_y_ratio": self.grab_y_spin.value(),
             "grab_range_radius_ratio": self.grab_r_spin.value(),
+            # 评分权重
+            "cube_score_weight_distance": self.cube_w_dist_spin.value(),
+            "cube_score_weight_density": self.cube_w_dens_spin.value(),
+            "ball_score_weight_distance": self.ball_w_dist_spin.value(),
+            "ball_score_weight_color": self.ball_w_color_spin.value(),
+            "ball_score_weight_density": self.ball_w_dens_spin.value(),
+            "score_distance_plateau": self.plateau_spin.value(),
+            "score_density_radius_px": self.dens_radius_spin.value(),
+            "ball_score_black": self.ball_black_spin.value(),
+            "ball_score_brown": self.ball_brown_spin.value(),
+            "ball_score_pink": self.ball_pink_spin.value(),
+            "ball_score_blue": self.ball_blue_spin.value(),
+            "ball_score_yellow": self.ball_yellow_spin.value(),
+            "ball_score_green": self.ball_green_spin.value(),
         }
 
     # ──────────────────────────── 事件处理 ────────────────────────────
