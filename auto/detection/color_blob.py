@@ -68,3 +68,25 @@ def find_color_blobs(frame, color: str, min_area: int = 500) -> list[ColorBlob]:
                                center=(x + w // 2, y + h // 2), area=area))
     blobs.sort(key=lambda b: b.area, reverse=True)
     return blobs
+
+
+def dominant_color(frame, bbox: tuple[int, int, int, int] | None = None,
+                   min_area: int = 100) -> str | None:
+    """判定区域主色：六色分别找色块，色块总面积最大的颜色即主色
+
+    bbox 传入时只在该 ROI 内统计（如某个球的识别框），None 统计整帧；
+    没有任何颜色达到 min_area 返回 None；frame 缺失返回 None。
+    """
+    if frame is None:
+        return None
+    if bbox is not None:
+        x1, y1, x2, y2 = bbox
+        frame = frame[max(y1, 0):y2, max(x1, 0):x2]
+        if frame.size == 0:
+            return None
+    best, best_area = None, 0.0
+    for name in COLOR_NAMES:
+        area = sum(b.area for b in find_color_blobs(frame, name, min_area))
+        if area > best_area:
+            best, best_area = name, area
+    return best

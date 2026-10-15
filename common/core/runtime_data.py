@@ -65,6 +65,13 @@ class RuntimeData:
         self.bucket_list: list = []    # 识别到的投放桶（BucketObject：bbox/center）
         self.bucket_time: float = 0.0  # 最近一次桶识别入库时间戳（入库时打）
 
+        # ============================================================
+        # 自动链路：抓取范围过滤结果（评分的待抓取对象）
+        # ============================================================
+        self.grabbable_cube_list: list = []  # 范围内魔方（识别列表保留全部结果，这里只存可抓取的）
+        self.grabbable_ball_list: list = []  # 范围内球
+        self.grabbable_time: float = 0.0     # 最近一次过滤入库时间戳（入库时打）
+
     # ──────────────────────── 帧数据 ────────────────────────
 
     def set_frame(self, frame):
@@ -129,6 +136,12 @@ class RuntimeData:
         self.bucket_list = bucket_list
         self.bucket_time = time.time()
 
+    def set_grabbable(self, cube_list: list, ball_list: list):
+        """刷新抓取范围过滤结果（两份列表整体覆盖；存入时统一打时间戳）"""
+        self.grabbable_cube_list = cube_list
+        self.grabbable_ball_list = ball_list
+        self.grabbable_time = time.time()
+
     # ──────────────────────── 全局重置 ────────────────────────
 
     def reset_all(self):
@@ -154,3 +167,7 @@ class RuntimeData:
 
         self.bucket_list = []
         self.bucket_time = 0.0
+
+        self.grabbable_cube_list = []
+        self.grabbable_ball_list = []
+        self.grabbable_time = 0.0
