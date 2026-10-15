@@ -4,7 +4,7 @@
 import cv2
 import numpy as np
 import os
-from core.utils import log_error
+from common.core.utils import log_error
 
 
 class Undistorter:

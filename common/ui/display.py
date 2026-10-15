@@ -10,10 +10,10 @@ from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout,
                              QDoubleSpinBox)
 from PyQt5.QtCore import Qt, QRect, QPoint, QTimer
 from PyQt5.QtGui import QImage, QPixmap, QFont, QIcon, QPainter, QPen, QColor
-from core.config import config
-from core.utils import log_error, px_to_ratio
-from logic.interaction_manager import InteractionState
-from ui.stopwatch_widget import StopwatchWidget
+from common.core.config import config
+from common.core.utils import log_error, px_to_ratio
+from common.logic.interaction_manager import InteractionState
+from common.ui.stopwatch_widget import StopwatchWidget
 
 # QuickPopup 自动关闭延迟（毫秒）
 _POPUP_AUTO_CLOSE_MS = 750

@@ -91,7 +91,7 @@ class SettingsDialog(QDialog):
 
         # ── 预设分辨率快捷按钮 ──
         preset_layout = QHBoxLayout()
-        from core.config import config
+        from common.core.config import config
         for label, w, h in config.resolution_presets:
             btn = QPushButton(label)
             btn.clicked.connect(lambda checked, w=w, h=h: self._set_resolution(w, h))
@@ -267,7 +267,7 @@ class SettingsDialog(QDialog):
 
     def _add_common_ports(self, current=""):
         """按平台列出常用端口到下拉框"""
-        from core.config import config
+        from common.core.config import config
         common_ports = []
         if sys.platform.startswith("win"):
             common_ports = config.serial_ports_windows
@@ -288,7 +288,7 @@ class SettingsDialog(QDialog):
     def _load_from_config(self):
         """从全局 config 加载当前值到界面"""
         self._modified = False
-        from core.config import config
+        from common.core.config import config
 
         # 信号源
         src_idx = self.source_combo.findData(config.camera_source)
@@ -345,7 +345,7 @@ class SettingsDialog(QDialog):
 
     def _collect_values(self):
         """收集对话框中所有配置值，返回 dict"""
-        from core.config import config
+        from common.core.config import config
         prefix_raw = self.prefix_edit.text().strip()
         return {
             # 信号源

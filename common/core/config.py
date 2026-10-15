@@ -7,10 +7,10 @@ import re
 import sys
 import yaml
 
-from core.utils import px_to_ratio
+from common.core.utils import px_to_ratio
 
-# 项目根目录（基于 core/config.py 的位置自动计算得到 souiju12/）
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+# 项目根目录（基于 common/core/config.py 的位置向上两级自动计算）
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 
 class Config:

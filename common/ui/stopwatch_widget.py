@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayo
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 
-from logic.stopwatch import Stopwatch
+from common.logic.stopwatch import Stopwatch
 
 
 class StopwatchWidget(QWidget):

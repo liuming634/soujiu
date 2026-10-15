@@ -117,7 +117,7 @@ class SerialComm:
     def send_data(self, data1: int, data2: int, data3: int, data4: int = 0) -> bool:
         """发送四个数，成功返回 True，失败标记断开"""
         try:
-            from core.config import config
+            from common.core.config import config
             prefix = config.serial_prefix.to_bytes(2, 'big')
             frame = self.protocol.pack(data1, data2, data3, data4, prefix=prefix)
             self.ser.write(frame)
@@ -148,7 +148,7 @@ class SerialComm:
         :return: True=发送完成，False=被取消/发送异常
         """
         try:
-            from core.config import config
+            from common.core.config import config
             prefix = config.serial_prefix.to_bytes(2, 'big')
             if duration is None:
                 duration = config.serial_send_duration

@@ -5,18 +5,19 @@
 
 PC 上全链路测试：
   socat -d -d pty,raw,echo=0 pty,raw,echo=0   # 创建虚拟串口对 /dev/pts/X 和 /dev/pts/Y
-  python scripts/serial_echo_device.py /dev/pts/X 9600
+  python common/scripts/serial_echo_device.py /dev/pts/X 9600
   （主程序串口设为 /dev/pts/Y）
 
 STM32 端实现参考：串口中断收满 18 字节 → 校验帧头/校验和 → 原样回发。
 """
+import os
 import sys
 import time
 
 import serial
 
-sys.path.insert(0, __file__.rsplit('/', 2)[0])
-from hardware.serial_protocol import SerialDataProtocol, SerialComm, _normalize_port
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from common.hardware.serial_protocol import SerialDataProtocol, SerialComm, _normalize_port
 
 
 def run(port: str, baudrate: int, prefix: bytes):
@@ -69,5 +70,5 @@ def run(port: str, baudrate: int, prefix: bytes):
 if __name__ == "__main__":
     port = sys.argv[1] if len(sys.argv) > 1 else "/dev/pts/3"
     baudrate = int(sys.argv[2]) if len(sys.argv) > 2 else 9600
-    from core.config import config
+    from common.core.config import config
     run(port, baudrate, config.serial_prefix.to_bytes(2, 'big'))

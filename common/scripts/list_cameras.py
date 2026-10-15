@@ -7,7 +7,7 @@
 """
 import cv2
 
-from hardware.camera import get_camera_backends
+from common.hardware.camera import get_camera_backends
 
 
 def list_cameras():

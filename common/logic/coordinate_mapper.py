@@ -4,8 +4,8 @@
 import cv2
 import numpy as np
 import os
-from core.config import config
-from core.utils import log_error
+from common.core.config import config
+from common.core.utils import log_error
 
 
 class PixelToPlaneMapper:

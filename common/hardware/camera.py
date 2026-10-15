@@ -5,9 +5,9 @@ import time
 import cv2
 import os
 import numpy as np
-from core.config import config
-from hardware.undistorter import UndistortMixin
-from core.utils import log_error, make_status_frame
+from common.core.config import config
+from common.hardware.undistorter import UndistortMixin
+from common.core.utils import log_error, make_status_frame
 
 # 全局抑制 OpenCV 控制台警告（不影响功能）
 os.environ["OPENCV_LOG_LEVEL"] = "ERROR"

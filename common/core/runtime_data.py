@@ -12,6 +12,7 @@
   data.set_frame(frame)          # 刷新写入
   data.reset_all()               # 全部重置
 """
+import time
 
 
 class RuntimeData:
@@ -44,6 +45,12 @@ class RuntimeData:
 
         # 待发送数据缓存（打包后按空格确认发送）
         self.pending_proto: tuple[int, int, int, int] | None = None  # (x, y, n, rx)
+
+        # ============================================================
+        # 自动链路：下位机执行机构状态（实时覆盖，无缓存）
+        # ============================================================
+        self.actuator_state = None             # ActuatorState（auto/actuator/state.py）
+        self.actuator_state_time: float = 0.0  # 最近一帧入库时间戳（入库时打）
 
     # ──────────────────────── 帧数据 ────────────────────────
 
@@ -89,6 +96,13 @@ class RuntimeData:
         """清除待发送数据缓存"""
         self.pending_proto = None
 
+    # ──────────────────────── 自动链路：下位机执行机构状态 ────────────────────────
+
+    def set_actuator_state(self, state):
+        """刷新下位机执行机构状态（五项一帧整体覆盖；存入时统一打时间戳）"""
+        self.actuator_state = state
+        self.actuator_state_time = time.time()
+
     # ──────────────────────── 全局重置 ────────────────────────
 
     def reset_all(self):
@@ -104,3 +118,6 @@ class RuntimeData:
 
         self.last_sent_proto = None
         self.pending_proto = None
+
+        self.actuator_state = None
+        self.actuator_state_time = 0.0

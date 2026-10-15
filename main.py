@@ -30,15 +30,15 @@ import numpy as np
 from PyQt5.QtWidgets import QApplication, QDialog
 from PyQt5.QtCore import QTimer, Qt
 
-from core.config import config
-from core.utils import log_error
-from hardware.camera import CameraManager
-from logic.coordinate_mapper import PixelToPlaneMapper
-from hardware.serial_protocol import SerialComm
-from core.runtime_data import RuntimeData
-from logic.interaction_manager import InteractionManager
-from ui.display import VideoDisplay
-from ui.settings_dialog import SettingsDialog
+from common.core.config import config
+from common.core.utils import log_error
+from common.hardware.camera import CameraManager
+from common.logic.coordinate_mapper import PixelToPlaneMapper
+from common.hardware.serial_protocol import SerialComm
+from common.core.runtime_data import RuntimeData
+from common.logic.interaction_manager import InteractionManager
+from common.ui.display import VideoDisplay
+from common.ui.settings_dialog import SettingsDialog
 
 
 class VisionFramework:

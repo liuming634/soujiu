@@ -1,12 +1,12 @@
 """
 畸变标定工具 - 独立脚本，采集棋盘格图像并标定相机内参
 
-标定参数在下方模块常量中定义（与 core.config 中的保持一致）。
-摄像头后端回退复用 hardware.camera.get_camera_backends()。
+标定参数在下方模块常量中定义（与 common.core.config 中的保持一致）。
+摄像头后端回退复用 common.hardware.camera.get_camera_backends()。
 帧率优化：waitKey(1) 实时显示 + 缩略图检测棋盘格 + 冷却计数代替硬阻塞。
 
 使用方法:
-    python scripts/distortion_calibrate.py
+    python common/scripts/distortion_calibrate.py
 
 操作说明:
     - 将棋盘格在摄像头前移动，展示不同角度和位置
@@ -16,8 +16,9 @@
 import cv2
 import numpy as np
 import os
+import sys
 
-from hardware.camera import get_camera_backends
+from common.hardware.camera import get_camera_backends
 
 # ── 标定参数（可直接修改） ──────────────────────────────────────
 CHESSBOARD_PATTERN = (11, 8)          # 内角点数 (列, 行)
@@ -27,9 +28,11 @@ CAMERA_ID = 0                         # 摄像头编号
 CAMERA_WIDTH = 1920                   # 0 表示使用默认
 CAMERA_HEIGHT = 1080                  # 0 表示使用默认
 
-# ➜ 脚本自己定位项目目录，不再依赖 core.config
+# ➜ 脚本自己定位项目目录，不再依赖 common.core.config
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
+PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 CALIB_DIR = os.path.join(PROJECT_ROOT, "calibration_data")
 CAMERA_MATRIX_FILE = os.path.join(CALIB_DIR, "camera_matrix.npy")
 DIST_COEFFS_FILE = os.path.join(CALIB_DIR, "dist_coeffs.npy")

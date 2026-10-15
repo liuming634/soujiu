@@ -7,11 +7,11 @@ from dataclasses import dataclass
 from typing import Optional
 import threading
 
-from core.config import config
-from core.utils import log_error
-from hardware.serial_protocol import SerialComm
-from logic.coordinate_mapper import PixelToPlaneMapper
-from core.runtime_data import RuntimeData
+from common.core.config import config
+from common.core.utils import log_error
+from common.hardware.serial_protocol import SerialComm
+from common.logic.coordinate_mapper import PixelToPlaneMapper
+from common.core.runtime_data import RuntimeData
 
 import sys
 _WARN_COLOR = "\033[93m" if not sys.platform.startswith("win") else ""

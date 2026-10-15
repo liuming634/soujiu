@@ -4,8 +4,14 @@
 """
 import os
 import sys
-from logic.coordinate_mapper import PixelToPlaneMapper
-from core.config import config
+
+# 以本文件位置定位项目根目录，保证脚本可从任意工作目录直接运行
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from common.logic.coordinate_mapper import PixelToPlaneMapper
+from common.core.config import config
 
 
 def calibrate_from_image(image_path, output_file="calibration_data/homography.npy",
@@ -62,7 +68,7 @@ def calibrate_from_image(image_path, output_file="calibration_data/homography.np
         print("=" * 60)
         print(f"单应性矩阵已保存到: {output_file}")
         print("\n💡 使用方法:")
-        print("   from logic.coordinate_mapper import PixelToPlaneMapper")
+        print("   from common.logic.coordinate_mapper import PixelToPlaneMapper")
         print(f"   mapper = PixelToPlaneMapper(homography_file='{output_file}')")
         print("   x, y = mapper.pixel_to_plane(pixel_x, pixel_y)")
         print("=" * 60)
