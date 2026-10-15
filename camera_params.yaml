@@ -13,8 +13,8 @@ coordinate_offset: 5000
 coordinate_scale: 1000
 dist_coeffs_file: calibration_data/dist_coeffs.npy
 fps_display: true
-grab_range_radius_ratio: 0.334375
-grab_range_x_ratio: 0.4630208333333333
+grab_range_radius_ratio: 0.33177083333333335
+grab_range_x_ratio: 0.5005208333333333
 grab_range_y_ratio: 0.706
 grid_crop_ratio: 1.0
 gui_mode: '6'
