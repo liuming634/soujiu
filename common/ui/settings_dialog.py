@@ -50,6 +50,7 @@ class SettingsDialog(QDialog):
         self._create_general_tab()
         self._create_grab_range_tab()
         self._create_scoring_tab()
+        self._create_grab_check_tab()
 
         # 底部按钮
         buttons = QDialogButtonBox(
@@ -287,6 +288,35 @@ class SettingsDialog(QDialog):
 
         self.tabs.addTab(tab, "评分权重")
 
+    def _create_grab_check_tab(self):
+        """抓取成功判定参数选项卡"""
+        tab = QWidget()
+        layout = QFormLayout(tab)
+
+        hint = QLabel("占位默认为舵机全行程(0~4095)，现场标定后修改。"
+                      "伸缩舵机1/2 角度偏差在容差内视为机构正常；魔方/球夹取范围分开配置。")
+        hint.setStyleSheet("color: gray;")
+        hint.setWordWrap(True)
+        layout.addRow("", hint)
+
+        def add_servo(label):
+            spin = QSpinBox()
+            spin.setRange(0, 65535)
+            layout.addRow(label, spin)
+            return spin
+
+        self.gc_dev_tol_spin = add_servo("伸缩舵机偏差容差:")
+        self.gc_stretch_min_spin = add_servo("伸缩运动范围下限:")
+        self.gc_stretch_max_spin = add_servo("伸缩运动范围上限:")
+        self.gc_cube_min_spin = add_servo("夹魔方角度下限:")
+        self.gc_cube_max_spin = add_servo("夹魔方角度上限:")
+        self.gc_ball_min_spin = add_servo("夹球角度下限:")
+        self.gc_ball_max_spin = add_servo("夹球角度上限:")
+        self.gc_idle_min_spin = add_servo("静止状态角度下限:")
+        self.gc_idle_max_spin = add_servo("静止状态角度上限:")
+
+        self.tabs.addTab(tab, "抓取判定")
+
     # ──────────────────────────── 辅助方法 ────────────────────────────
 
     def _add_file_row(self, layout, label, key, default):
@@ -404,6 +434,17 @@ class SettingsDialog(QDialog):
         self.ball_yellow_spin.setValue(config.ball_score_yellow)
         self.ball_green_spin.setValue(config.ball_score_green)
 
+        # 抓取判定
+        self.gc_dev_tol_spin.setValue(config.grab_stretch_deviation_tol)
+        self.gc_stretch_min_spin.setValue(config.grab_stretch_range_min)
+        self.gc_stretch_max_spin.setValue(config.grab_stretch_range_max)
+        self.gc_cube_min_spin.setValue(config.grab_cube_range_min)
+        self.gc_cube_max_spin.setValue(config.grab_cube_range_max)
+        self.gc_ball_min_spin.setValue(config.grab_ball_range_min)
+        self.gc_ball_max_spin.setValue(config.grab_ball_range_max)
+        self.gc_idle_min_spin.setValue(config.grab_idle_range_min)
+        self.gc_idle_max_spin.setValue(config.grab_idle_range_max)
+
     def _collect_values(self):
         """收集对话框中所有配置值，返回 dict"""
         from common.core.config import config
@@ -455,6 +496,16 @@ class SettingsDialog(QDialog):
             "ball_score_blue": self.ball_blue_spin.value(),
             "ball_score_yellow": self.ball_yellow_spin.value(),
             "ball_score_green": self.ball_green_spin.value(),
+            # 抓取判定
+            "grab_stretch_deviation_tol": self.gc_dev_tol_spin.value(),
+            "grab_stretch_range_min": self.gc_stretch_min_spin.value(),
+            "grab_stretch_range_max": self.gc_stretch_max_spin.value(),
+            "grab_cube_range_min": self.gc_cube_min_spin.value(),
+            "grab_cube_range_max": self.gc_cube_max_spin.value(),
+            "grab_ball_range_min": self.gc_ball_min_spin.value(),
+            "grab_ball_range_max": self.gc_ball_max_spin.value(),
+            "grab_idle_range_min": self.gc_idle_min_spin.value(),
+            "grab_idle_range_max": self.gc_idle_max_spin.value(),
         }
 
     # ──────────────────────────── 事件处理 ────────────────────────────

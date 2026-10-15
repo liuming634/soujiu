@@ -51,6 +51,11 @@ class Config:
         "score_distance_plateau", "score_density_radius_px",
         "ball_score_black", "ball_score_brown", "ball_score_pink",
         "ball_score_blue", "ball_score_yellow", "ball_score_green",
+        "grab_stretch_deviation_tol",
+        "grab_stretch_range_min", "grab_stretch_range_max",
+        "grab_cube_range_min", "grab_cube_range_max",
+        "grab_ball_range_min", "grab_ball_range_max",
+        "grab_idle_range_min", "grab_idle_range_max",
     }
 
     # Windows 盘符绝对路径，如 d:/code/...（在 Linux 上 os.path.isabs 判断为 False）
@@ -84,6 +89,7 @@ class Config:
         self._init_camera_defaults()
         self._init_gui_defaults()
         self._init_scoring_defaults()
+        self._init_grab_check_defaults()
         self._init_file_path_defaults()
 
         # 相机内参（标定后由外部工具写入）
@@ -196,6 +202,22 @@ class Config:
         self.ball_score_blue = 1.0
         self.ball_score_yellow = 1.0
         self.ball_score_green = 1.0
+
+    def _init_grab_check_defaults(self):
+        """抓取成功判定参数（占位默认为舵机全行程 0~4095，现场标定后调整）
+
+        伸缩舵机1/2 角度偏差在容差内视为机构正常；魔方/球夹取角度范围
+        分开配置（两者判定数据不一样）。
+        """
+        self.grab_stretch_deviation_tol = 30   # 伸缩舵机1/2 角度偏差容差
+        self.grab_stretch_range_min = 0        # 伸缩机构运动范围（舵机1/2共用）
+        self.grab_stretch_range_max = 4095
+        self.grab_cube_range_min = 0           # 抓取舵机夹魔方的角度范围
+        self.grab_cube_range_max = 4095
+        self.grab_ball_range_min = 0           # 抓取舵机夹球的角度范围（与魔方不同）
+        self.grab_ball_range_max = 4095
+        self.grab_idle_range_min = 0           # 抓取机构静止状态角度范围
+        self.grab_idle_range_max = 4095
 
     def _init_file_path_defaults(self):
         """标定文件路径默认值，并统一规范化为项目相对路径（跨平台可移植）"""
@@ -341,6 +363,9 @@ class Config:
     # 评分权重/颜色分统一校验（0~10，等权占位可调）
     _weight_ok = lambda v: isinstance(v, (int, float)) and 0.0 <= v <= 10.0
 
+    # 舵机角度/位置类参数统一校验（0~65535）
+    _servo_ok = lambda v: isinstance(v, int) and 0 <= v <= 65535
+
     _VALIDATORS = {
         "camera_id": lambda v: isinstance(v, int) and 0 <= v <= 99,
         "camera_width": lambda v: isinstance(v, int) and 160 <= v <= 7680,
@@ -376,6 +401,15 @@ class Config:
         "ball_score_blue": _weight_ok,
         "ball_score_yellow": _weight_ok,
         "ball_score_green": _weight_ok,
+        "grab_stretch_deviation_tol": _servo_ok,
+        "grab_stretch_range_min": _servo_ok,
+        "grab_stretch_range_max": _servo_ok,
+        "grab_cube_range_min": _servo_ok,
+        "grab_cube_range_max": _servo_ok,
+        "grab_ball_range_min": _servo_ok,
+        "grab_ball_range_max": _servo_ok,
+        "grab_idle_range_min": _servo_ok,
+        "grab_idle_range_max": _servo_ok,
     }
 
     def validate_param(self, key: str, value) -> bool:

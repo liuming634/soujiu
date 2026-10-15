@@ -9,6 +9,9 @@
 
 from dataclasses import dataclass, asdict
 
+CLS_CUBE = 'cube'   # 品类：魔方（链路各处引用的品类词汇）
+CLS_BALL = 'ball'   # 品类：球
+
 
 @dataclass
 class DetectedObject:
