@@ -13,6 +13,15 @@
   data.reset_all()               # 全部重置
 """
 import time
+from collections import deque
+
+# 自动链路接收队列长度（接收线程入队、处理端消费；满了丢最旧、保留最新）
+# 机构状态：回传约 50~100Hz，16 帧 ≈ 0.2~0.3s，够判稳做帧间比较
+ACTUATOR_QUEUE_SIZE = 16
+# IMU：落地判定需要 ≥200Hz 连续采样，128 帧 ≈ 0.6s@200Hz，覆盖 0.5s 确认窗
+IMU_QUEUE_SIZE = 128
+# 识别结果队列：每项 = 一帧推理的该品类目标列表（调用方按帧放入，防抖/评分取用）
+DETECT_QUEUE_SIZE = 16
 
 
 class RuntimeData:
@@ -47,10 +56,17 @@ class RuntimeData:
         self.pending_proto: tuple[int, int, int, int] | None = None  # (x, y, n, rx)
 
         # ============================================================
-        # 自动链路：下位机执行机构状态（实时覆盖，无缓存）
+        # 自动链路：下位机回传数据（接收线程持续写入，处理端从队列取）
+        # 时间戳打在数据对象自己的 time 字段里（接收线程入队前打）
         # ============================================================
-        self.actuator_state = None             # ActuatorState（auto/actuator/state.py）
-        self.actuator_state_time: float = 0.0  # 最近一帧入库时间戳（入库时打）
+        self.actuator_state = None             # ActuatorState 最新一帧镜像（auto/actuator/state.py）
+        self.imu_state = None                  # ImuData 最新一帧镜像（auto/actuator/state.py）
+        self.actuator_queue = deque(maxlen=ACTUATOR_QUEUE_SIZE)  # 机构状态队列
+        self.imu_queue = deque(maxlen=IMU_QUEUE_SIZE)            # IMU 队列
+
+        # 识别结果队列（detection 的 detect() 结果由调用方按帧放入，非接收线程写）
+        self.cube_queue = deque(maxlen=DETECT_QUEUE_SIZE)   # 每项 = 一帧的魔方目标列表
+        self.ball_queue = deque(maxlen=DETECT_QUEUE_SIZE)   # 每项 = 一帧的球目标列表
 
     # ──────────────────────── 帧数据 ────────────────────────
 
@@ -96,12 +112,15 @@ class RuntimeData:
         """清除待发送数据缓存"""
         self.pending_proto = None
 
-    # ──────────────────────── 自动链路：下位机执行机构状态 ────────────────────────
+    # ──────────────────────── 自动链路：下位机回传数据 ────────────────────────
 
     def set_actuator_state(self, state):
-        """刷新下位机执行机构状态（五项一帧整体覆盖；存入时统一打时间戳）"""
+        """刷新执行机构状态最新一帧镜像（时间戳在数据对象的 time 字段里）"""
         self.actuator_state = state
-        self.actuator_state_time = time.time()
+
+    def set_imu_state(self, state):
+        """刷新 IMU 数据最新一帧镜像（时间戳在数据对象的 time 字段里）"""
+        self.imu_state = state
 
     # ──────────────────────── 全局重置 ────────────────────────
 
@@ -120,4 +139,8 @@ class RuntimeData:
         self.pending_proto = None
 
         self.actuator_state = None
-        self.actuator_state_time = 0.0
+        self.imu_state = None
+        self.actuator_queue.clear()
+        self.imu_queue.clear()
+        self.cube_queue.clear()
+        self.ball_queue.clear()
