@@ -37,3 +37,19 @@ class BucketObject:
     def as_dict(self) -> dict:
         """转字典（GUI 显示 / 调试用）"""
         return asdict(self)
+
+
+@dataclass
+class PanObject:
+    """投放大盆（魔方投放行为用）：YOLO 识别到的盆位置
+
+    盆大、颜色均匀、首次投放为空，按投放判定只需要其 ROI 区域与抓取范围
+    的重合像素，故只存位置信息，不编号。
+    """
+
+    bbox: tuple[int, int, int, int]     # 盆的 ROI 识别框 (x1, y1, x2, y2) 像素坐标
+    center: tuple[int, int]             # ROI 中点（像素）
+
+    def as_dict(self) -> dict:
+        """转字典（GUI 显示 / 调试用）"""
+        return asdict(self)

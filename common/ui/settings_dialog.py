@@ -51,6 +51,7 @@ class SettingsDialog(QDialog):
         self._create_grab_range_tab()
         self._create_scoring_tab()
         self._create_grab_check_tab()
+        self._create_drop_check_tab()
 
         # 底部按钮
         buttons = QDialogButtonBox(
@@ -294,7 +295,9 @@ class SettingsDialog(QDialog):
         layout = QFormLayout(tab)
 
         hint = QLabel("占位默认为舵机全行程(0~4095)，现场标定后修改。"
-                      "伸缩舵机1/2 角度偏差在容差内视为机构正常；魔方/球夹取范围分开配置。")
+                      "伸缩舵机1/2 角度偏差在容差内视为机构正常；"
+                      "伸缩机构有一个静止保持位置（抓取成功/未抓取时机构停的位置），"
+                      "魔方/球夹取范围分开配置。")
         hint.setStyleSheet("color: gray;")
         hint.setWordWrap(True)
         layout.addRow("", hint)
@@ -308,6 +311,8 @@ class SettingsDialog(QDialog):
         self.gc_dev_tol_spin = add_servo("伸缩舵机偏差容差:")
         self.gc_stretch_min_spin = add_servo("伸缩运动范围下限:")
         self.gc_stretch_max_spin = add_servo("伸缩运动范围上限:")
+        self.gc_stretch_hold_min_spin = add_servo("伸缩保持位置角度下限:")
+        self.gc_stretch_hold_max_spin = add_servo("伸缩保持位置角度上限:")
         self.gc_cube_min_spin = add_servo("夹魔方角度下限:")
         self.gc_cube_max_spin = add_servo("夹魔方角度上限:")
         self.gc_ball_min_spin = add_servo("夹球角度下限:")
@@ -316,6 +321,25 @@ class SettingsDialog(QDialog):
         self.gc_idle_max_spin = add_servo("静止状态角度上限:")
 
         self.tabs.addTab(tab, "抓取判定")
+
+    def _create_drop_check_tab(self):
+        """投放判定参数选项卡"""
+        tab = QWidget()
+        layout = QFormLayout(tab)
+
+        hint = QLabel("投放成功与否不影响下一步，只判定\"是否可以投放\"。"
+                      "魔方可投放：投放大盆(YOLO识别) ROI 与抓取范围重合像素数"
+                      " ≥ 阈值；球可投放：桶 ROI 中点是否在抓取范围内（占位，后续改进）。")
+        hint.setStyleSheet("color: gray;")
+        hint.setWordWrap(True)
+        layout.addRow("", hint)
+
+        self.dc_pan_overlap_spin = QSpinBox()
+        self.dc_pan_overlap_spin.setRange(0, 10000000)
+        self.dc_pan_overlap_spin.setSingleStep(500)
+        layout.addRow("魔方可投-盆重合像素下限:", self.dc_pan_overlap_spin)
+
+        self.tabs.addTab(tab, "投放判定")
 
     # ──────────────────────────── 辅助方法 ────────────────────────────
 
@@ -438,12 +462,17 @@ class SettingsDialog(QDialog):
         self.gc_dev_tol_spin.setValue(config.grab_stretch_deviation_tol)
         self.gc_stretch_min_spin.setValue(config.grab_stretch_range_min)
         self.gc_stretch_max_spin.setValue(config.grab_stretch_range_max)
+        self.gc_stretch_hold_min_spin.setValue(config.grab_stretch_hold_range_min)
+        self.gc_stretch_hold_max_spin.setValue(config.grab_stretch_hold_range_max)
         self.gc_cube_min_spin.setValue(config.grab_cube_range_min)
         self.gc_cube_max_spin.setValue(config.grab_cube_range_max)
         self.gc_ball_min_spin.setValue(config.grab_ball_range_min)
         self.gc_ball_max_spin.setValue(config.grab_ball_range_max)
         self.gc_idle_min_spin.setValue(config.grab_idle_range_min)
         self.gc_idle_max_spin.setValue(config.grab_idle_range_max)
+
+        # 投放判定
+        self.dc_pan_overlap_spin.setValue(config.drop_pan_overlap_min_px)
 
     def _collect_values(self):
         """收集对话框中所有配置值，返回 dict"""
@@ -500,12 +529,17 @@ class SettingsDialog(QDialog):
             "grab_stretch_deviation_tol": self.gc_dev_tol_spin.value(),
             "grab_stretch_range_min": self.gc_stretch_min_spin.value(),
             "grab_stretch_range_max": self.gc_stretch_max_spin.value(),
+            "grab_stretch_hold_range_min": self.gc_stretch_hold_min_spin.value(),
+            "grab_stretch_hold_range_max": self.gc_stretch_hold_max_spin.value(),
             "grab_cube_range_min": self.gc_cube_min_spin.value(),
             "grab_cube_range_max": self.gc_cube_max_spin.value(),
             "grab_ball_range_min": self.gc_ball_min_spin.value(),
             "grab_ball_range_max": self.gc_ball_max_spin.value(),
             "grab_idle_range_min": self.gc_idle_min_spin.value(),
             "grab_idle_range_max": self.gc_idle_max_spin.value(),
+
+            # 投放判定
+            "drop_pan_overlap_min_px": self.dc_pan_overlap_spin.value(),
         }
 
     # ──────────────────────────── 事件处理 ────────────────────────────

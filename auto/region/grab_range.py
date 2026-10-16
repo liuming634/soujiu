@@ -56,6 +56,25 @@ def point_in_range(x: int, y: int, frame) -> bool:
     return bool(_range_mask(w, h)[yi, xi] == 0)
 
 
+def overlap_px(roi: tuple[int, int, int, int], frame) -> int:
+    """矩形 ROI 与抓取范围重合的像素数（对比板裁剪 ROI 区域统计黑像素）
+
+    roi: (x1, y1, x2, y2)；越界部分自动裁剪到画面内。
+    帧缺失或 ROI 无效返回 0。
+    """
+    if frame is None:
+        return 0
+    h, w = frame.shape[:2]
+    x1 = min(max(int(roi[0]), 0), w)
+    y1 = min(max(int(roi[1]), 0), h)
+    x2 = min(max(int(roi[2]), 0), w)
+    y2 = min(max(int(roi[3]), 0), h)
+    if x2 <= x1 or y2 <= y1:
+        return 0
+    region = _range_mask(w, h)[y1:y2, x1:x2]
+    return int((region == 0).sum())
+
+
 def filter_grabbable(objects: list, frame) -> list:
     """过滤一个识别列表：只保留 ROI 中点在抓取范围内的对象
 

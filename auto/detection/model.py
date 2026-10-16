@@ -15,6 +15,7 @@ MODEL_FILE = "models/cube_ball.pt"   # 权重路径（相对项目根，占位�
 CUBE_CLASS_NAME = "cube"             # 权重里魔方的类别名
 BALL_CLASS_NAME = "ball"             # 权重里球的类别名
 BUCKET_CLASS_NAME = "bucket"         # 权重里投放桶的类别名
+PAN_CLASS_NAME = "pan"               # 权重里投放大盆的类别名（占位，就位后按实际改）
 CONF_THRESHOLD = 0.8                 # 置信度阈值：≥0.8 才认定为对应品类
 
 _model = None  # 进程内缓存的模型实例（懒加载，只加载一次）

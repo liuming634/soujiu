@@ -9,8 +9,8 @@ from common.core.runtime_data import RuntimeData
 
 from auto.detection.model import (BALL_CLASS_NAME, BUCKET_CLASS_NAME,
                                   CONF_THRESHOLD, CUBE_CLASS_NAME,
-                                  run_inference)
-from auto.detection.state import BucketObject, DetectedObject
+                                  PAN_CLASS_NAME, run_inference)
+from auto.detection.state import BucketObject, DetectedObject, PanObject
 
 
 def assign_numbers(objects: list[DetectedObject]) -> list[DetectedObject]:
@@ -99,3 +99,38 @@ def detect_buckets(frame, data: RuntimeData | None = None) -> list[BucketObject]
     if data is not None:
         data.set_buckets(buckets)   # 入库时统一打时间戳
     return buckets
+
+
+def build_pans(raw: list) -> list[PanObject]:
+    """原始检测 → 置信度过滤（≥80% 才认定）→ 取盆 → 按 ROI 中点 x 优先排序
+
+    盆只存位置信息不编号（与投放桶同规则：先比 x，x 同比 y）。
+    """
+    pans: list[PanObject] = []
+    for cls_name, bbox, conf in raw:
+        if cls_name != PAN_CLASS_NAME or conf < CONF_THRESHOLD:
+            continue
+        x1, y1, x2, y2 = bbox
+        pans.append(PanObject(bbox=tuple(bbox),
+                              center=((x1 + x2) // 2, (y1 + y2) // 2)))
+    pans.sort(key=lambda p: p.center)
+    return pans
+
+
+def detect_pans(frame, data: RuntimeData | None = None) -> list[PanObject]:
+    """跑一次投放大盆识别（魔方投放行为用，按需调用一次）
+
+    frame 由调用方传入当前画面帧；识别到盆返回 ROI 识别框 + 中点。
+    结果整体刷新存入 data（pan_list / pan_time，入库时打时间戳）
+    并原样返回；data 不传时只返回不存储。
+    frame 为 None（相机未就绪）时按空结果处理。
+    """
+    if frame is None:
+        print("[WARNING] 当前帧缺失，本次盆识别按空结果处理")
+        raw = []
+    else:
+        raw = run_inference(frame)
+    pans = build_pans(raw)
+    if data is not None:
+        data.set_pans(pans)   # 入库时统一打时间戳
+    return pans

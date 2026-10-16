@@ -53,9 +53,11 @@ class Config:
         "ball_score_blue", "ball_score_yellow", "ball_score_green",
         "grab_stretch_deviation_tol",
         "grab_stretch_range_min", "grab_stretch_range_max",
+        "grab_stretch_hold_range_min", "grab_stretch_hold_range_max",
         "grab_cube_range_min", "grab_cube_range_max",
         "grab_ball_range_min", "grab_ball_range_max",
         "grab_idle_range_min", "grab_idle_range_max",
+        "drop_pan_overlap_min_px",
     }
 
     # Windows 盘符绝对路径，如 d:/code/...（在 Linux 上 os.path.isabs 判断为 False）
@@ -90,6 +92,7 @@ class Config:
         self._init_gui_defaults()
         self._init_scoring_defaults()
         self._init_grab_check_defaults()
+        self._init_drop_check_defaults()
         self._init_file_path_defaults()
 
         # 相机内参（标定后由外部工具写入）
@@ -206,18 +209,31 @@ class Config:
     def _init_grab_check_defaults(self):
         """抓取成功判定参数（占位默认为舵机全行程 0~4095，现场标定后调整）
 
-        伸缩舵机1/2 角度偏差在容差内视为机构正常；魔方/球夹取角度范围
-        分开配置（两者判定数据不一样）。
+        伸缩舵机1/2 角度偏差在容差内视为机构正常；伸缩机构有一个静止保持
+        位置（抓取成功/未抓取时机构都会停的位置），处于该位置范围也是判定
+        抓取成功的依据之一；魔方/球夹取角度范围分开配置（两者判定数据
+        不一样）。
         """
         self.grab_stretch_deviation_tol = 30   # 伸缩舵机1/2 角度偏差容差
         self.grab_stretch_range_min = 0        # 伸缩机构运动范围（舵机1/2共用）
         self.grab_stretch_range_max = 4095
+        self.grab_stretch_hold_range_min = 0   # 伸缩机构静止保持位置角度范围（抓取成功/未抓取时机构停的位置）
+        self.grab_stretch_hold_range_max = 4095
         self.grab_cube_range_min = 0           # 抓取舵机夹魔方的角度范围
         self.grab_cube_range_max = 4095
         self.grab_ball_range_min = 0           # 抓取舵机夹球的角度范围（与魔方不同）
         self.grab_ball_range_max = 4095
         self.grab_idle_range_min = 0           # 抓取机构静止状态角度范围
         self.grab_idle_range_max = 4095
+
+    def _init_drop_check_defaults(self):
+        """投放判定参数（占位默认，现场标定后调整）
+
+        魔方可投放判定：投放大盆 ROI 与抓取范围重合的像素数下限；
+        球可投放判定当前用"桶中点是否在抓取范围内"，暂无独立参数（占位，
+        判定不够可靠，后续改进时再参数化）。
+        """
+        self.drop_pan_overlap_min_px = 5000    # 盆与抓取范围重合像素数下限
 
     def _init_file_path_defaults(self):
         """标定文件路径默认值，并统一规范化为项目相对路径（跨平台可移植）"""
@@ -404,12 +420,15 @@ class Config:
         "grab_stretch_deviation_tol": _servo_ok,
         "grab_stretch_range_min": _servo_ok,
         "grab_stretch_range_max": _servo_ok,
+        "grab_stretch_hold_range_min": _servo_ok,
+        "grab_stretch_hold_range_max": _servo_ok,
         "grab_cube_range_min": _servo_ok,
         "grab_cube_range_max": _servo_ok,
         "grab_ball_range_min": _servo_ok,
         "grab_ball_range_max": _servo_ok,
         "grab_idle_range_min": _servo_ok,
         "grab_idle_range_max": _servo_ok,
+        "drop_pan_overlap_min_px": lambda v: isinstance(v, (int, float)) and 0 <= v <= 1e9,
     }
 
     def validate_param(self, key: str, value) -> bool:

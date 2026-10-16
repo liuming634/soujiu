@@ -66,6 +66,12 @@ class RuntimeData:
         self.bucket_time: float = 0.0  # 最近一次桶识别入库时间戳（入库时打）
 
         # ============================================================
+        # 自动链路：投放大盆识别结果（魔方投放用，识别一次刷新一次）
+        # ============================================================
+        self.pan_list: list = []       # 识别到的投放大盆（PanObject：bbox/center）
+        self.pan_time: float = 0.0     # 最近一次盆识别入库时间戳（入库时打）
+
+        # ============================================================
         # 自动链路：抓取范围过滤结果（评分的待抓取对象）
         # ============================================================
         self.grabbable_cube_list: list = []  # 范围内魔方（识别列表保留全部结果，这里只存可抓取的）
@@ -136,6 +142,11 @@ class RuntimeData:
         self.bucket_list = bucket_list
         self.bucket_time = time.time()
 
+    def set_pans(self, pan_list: list):
+        """刷新投放大盆识别结果（整体覆盖；存入时统一打时间戳）"""
+        self.pan_list = pan_list
+        self.pan_time = time.time()
+
     def set_grabbable(self, cube_list: list, ball_list: list):
         """刷新抓取范围过滤结果（两份列表整体覆盖；存入时统一打时间戳）"""
         self.grabbable_cube_list = cube_list
@@ -167,6 +178,9 @@ class RuntimeData:
 
         self.bucket_list = []
         self.bucket_time = 0.0
+
+        self.pan_list = []
+        self.pan_time = 0.0
 
         self.grabbable_cube_list = []
         self.grabbable_ball_list = []
