@@ -31,6 +31,12 @@ AUTO_STATE_DROP = "drop"       # 投放态：正在执行投放
 AUTO_STATES = (AUTO_STATE_FLYING, AUTO_STATE_LANDED,
                AUTO_STATE_GRAB, AUTO_STATE_DROP)
 
+# ── 抓取机构实时状况（状态监视线程按舵机角度判定，全程刷新） ──
+GRABBER_HOLDING_CUBE = "cube"   # 夹着魔方（取值同 auto/params.DETECT_CUBE_CLASS）
+GRABBER_HOLDING_BALL = "ball"   # 夹着球（取值同 auto/params.DETECT_BALL_CLASS）
+GRABBER_EMPTY = "empty"         # 空爪（未夹物品；夹着→空爪的变化 = 掉落事件的判定材料）
+# None = 无法判定（无回传 / 角度不在任何已知范围 = 运动或执行动作中 / 判定未接入）
+
 
 class RuntimeData:
     """统一运行时数据管理"""
@@ -80,6 +86,13 @@ class RuntimeData:
         # 自动链路状态位（检测到对应信号后切换；下游链路按状态启动）
         # ============================================================
         self.auto_state: str = AUTO_STATE_FLYING   # 当前状态（set_auto_state 切换）
+        # 已抓物品标记（flow 写：抓取成功 = 本轮品类，投放完成清空）
+        # 取值 None=未抓 / 'cube' / 'ball'（同 auto/params.DETECT_*_CLASS）
+        self.auto_grabbed: str | None = None
+        # 抓取机构实时状况（状态监视线程按舵机角度全程判定刷新，与上面的
+        # 流程记账标记互相独立：飞行中掉落 = 标记还在 + 实时判定变空爪）
+        # 取值 GRABBER_HOLDING_CUBE / GRABBER_HOLDING_BALL / GRABBER_EMPTY / None
+        self.auto_grabber_status: str | None = None
 
         # ============================================================
         # 落地判定结果（landing 监视线程 / 调用方刷新，flow 确认窗取用）
@@ -164,6 +177,15 @@ class RuntimeData:
         if hit and hit_time is not None:
             self.landing_imu_hit_time = hit_time
 
+    def clear_landing_hit(self):
+        """清除落地触发记录（消费触发后由 flow 调用）：hit 与 hit_time 归零
+
+        防止同一次冲击被重复判定为落地；下一次落地必须由监视线程
+        写入新的命中时刻。
+        """
+        self.landing_imu_hit = False
+        self.landing_imu_hit_time = None
+
     def set_landing_frame_still(self, still: bool | None):
         """刷新光流画面静止判定结果（调用方按帧喂图判定后写）"""
         self.landing_frame_still = still
@@ -200,3 +222,5 @@ class RuntimeData:
         self.landing_frame_still = None
         self.receiver_last_time = None
         self.auto_state = AUTO_STATE_FLYING
+        self.auto_grabbed = None
+        self.auto_grabber_status = None

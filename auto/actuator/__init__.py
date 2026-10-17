@@ -5,7 +5,7 @@
 发送不另做封装：flow 直接用 common/hardware/serial_protocol.py 的
 SerialComm（与手动模式同协议同帧，收发共用一个串口）。
 
-已实现（state.py / link.py）：
+已实现（state.py / link.py / grabber.py）：
   1. ActuatorState（state.py）：执行机构状态——三舵机（伸缩1/2 + 抓取）
      + 两电机闭环读数，五项一帧整体更新（命令字 0x02）
   2. ImuData（state.py）：IMU 六轴原始读数一帧（命令字 0x03）——
@@ -24,6 +24,11 @@ SerialComm（与手动模式同协议同帧，收发共用一个串口）。
      校验和），格式细节以电控实现为准——改 link.py 常量与解析函数即可；
      接收主体按"校验和合法 → 按命令字分发"工作，未知命令字整帧丢弃，
      后续"其他数据"要回传时加一个命令字 + 解析函数即可，接收逻辑不动
+  5. 抓取机构实时状况判定（grabber.py judge_grabber）：抓取舵机角度 →
+     'empty' / 'ball' / 'cube' / None（三状况各一个角度范围：静止 /
+     抓球 / 抓魔方），状态监视线程全程轮询写 RuntimeData.
+     auto_grabber_status；范围参数在 auto/params.py actuator 段
+     （占位示意区间，标定后填）。抓取成败的组合判定（§4.3）待口述
 
 数据用途对照（谁消费什么）：
   三舵机   → 阶段四抓取成败判定（§4.3）/ G2 机构异常监视 / G3 脱落监视

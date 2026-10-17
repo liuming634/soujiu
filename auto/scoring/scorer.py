@@ -8,11 +8,10 @@
   │   dominant_color）→ 查 params.BALL_COLOR_SCORES 该颜色分值，
   │   判不出主色记 0
   └─ 密集因子（魔方/球同规则）：以目标中点为圆心、密集统计半径为
-      像素圆，数其他目标中点个数，取 1/(1+个数)——邻居越多分越低。
-      统计范围 = 本轮品类的**全部识别目标，含抓取圈外的**（只要
-      ROI 中点落在半径内就算邻居，由 all_cubes / all_balls 传入；
-      缺省 = 只数评分列表自身，即全部目标恰好都在圈内的情形）。
-      邻居暂取同品类，跨品类是否计入仍待确认（§3.3）
+      像素圆，数邻居中点个数，取 1/(1+个数)——邻居越多分越低。
+      C1 口径（已定）：密集只算魔方——邻居 = 魔方全部识别目标（含
+      抓取圈外的），球不参与统计（只有魔方影响抓取）；魔方评分与
+      球评分都用魔方邻域（score_balls 传 all_cubes）
 
 抓取圈换算复用 region 的 grab_circle（与手动模式画圆公式一致）。
 纯函数 API：只评分、只 return（ScoredTarget 列表），不入库、不改
@@ -49,8 +48,8 @@ def _distance_factor(center: tuple[int, int],
 def _density_factor(target: RoiTarget, neighbors: list[RoiTarget]) -> float:
     """密集因子：以目标中点为圆心数邻居列表内其他目标中点个数，1/(1+个数)
 
-    邻居列表 = 本轮品类全部识别目标（含抓取圈外的），不是只有圈内
-    候选——圈外目标挤在旁边同样说明位置差。
+    邻居列表由调用方传（C1 口径 = 魔方全部识别目标含圈外）——圈外
+    目标挤在评分对象旁边同样说明位置差。
     """
     n = sum(1 for o in neighbors
             if o is not target
@@ -89,20 +88,20 @@ def score_cubes(cubes: list[RoiTarget], frame,
 
 
 def score_balls(balls: list[RoiTarget], frame,
-                all_balls: list[RoiTarget] | None = None) -> list[ScoredTarget] | None:
+                all_cubes: list[RoiTarget] | None = None) -> list[ScoredTarget] | None:
     """球评分：距离 + 颜色 + 密集加权（权重 params.SCORE_WEIGHT_BALL_*）
 
-    balls = 圈内候选；all_balls = 本轮品类全部识别目标（密集统计用，
-    含抓取圈外的，缺省 = 只数 balls 自身）。颜色在球 ROI 内判主色
-    （dominant_color），得分查 params.BALL_COLOR_SCORES（判不出主色
-    记 0）。三态同 score_cubes。
+    balls = 圈内候选；all_cubes = 全部魔方识别目标（密集统计用，含抓取
+    圈外）——C1 口径：密集只算魔方（球不参与，只有魔方影响抓取），
+    缺省 = 无邻域（密集记 1）。颜色在球 ROI 内判主色（dominant_color），
+    得分查 params.BALL_COLOR_SCORES（判不出主色记 0）。三态同 score_cubes。
     """
     if frame is None:
         return None
     if not balls:
         return []
     circle = grab_circle(frame.shape[1], frame.shape[0])
-    neighbors = balls if all_balls is None else all_balls
+    neighbors = all_cubes if all_cubes is not None else []
     scored = [ScoredTarget(target=o, score=(
         params.SCORE_WEIGHT_BALL_DISTANCE * _distance_factor(o.center, circle)
         + params.SCORE_WEIGHT_BALL_COLOR * params.BALL_COLOR_SCORES.get(
