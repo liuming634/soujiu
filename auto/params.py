@@ -56,4 +56,19 @@ COLOR_NAMES = ('黑', '棕', '粉', '蓝', '黄', '绿')
 # common 的 config（GUI 可调），不进本文件。
 PAN_OVERLAP_MIN_PX = 2000     # 盆可投判定：盆 ROI 与抓取圈重合像素数下限（占位，待实测标定）
 
-# ════════════════ scoring / flow（随实现补充） ════════════════
+# ══════════════════════ scoring 评分选靶 ══════════════════════
+# 权重默认等权占位，现场按"距离/颜色/密集"的相对重要性调；距离/密集
+# 因子分值范围 0~1，颜色因子分值 = 该颜色分值（也按 0~1 配）。
+SCORE_WEIGHT_CUBE_DISTANCE = 1.0    # 魔方·距离权重
+SCORE_WEIGHT_CUBE_DENSITY = 1.0     # 魔方·密集权重
+SCORE_WEIGHT_BALL_DISTANCE = 1.0    # 球·距离权重
+SCORE_WEIGHT_BALL_COLOR = 1.0       # 球·颜色权重
+SCORE_WEIGHT_BALL_DENSITY = 1.0     # 球·密集权重
+SCORE_DISTANCE_PLATEAU = 0.3        # 距离同分 plateau（×抓取圈半径的比例，占位）
+SCORE_DENSITY_RADIUS_PX = 150       # 密集统计半径（像素，占位）
+BALL_COLOR_SCORES = {               # 六色球分值初始表（等权占位，待定）
+    '黑': 1.0, '棕': 1.0, '粉': 1.0,
+    '蓝': 1.0, '黄': 1.0, '绿': 1.0,
+}
+
+# ════════════════ flow（随实现补充） ════════════════
