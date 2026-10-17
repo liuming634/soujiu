@@ -16,15 +16,18 @@
   params.py   auto 模块专用参数文件：全链路可调参数集中处（landing /
               detection 段已就位，region / scoring / flow 随实现加段）
   detection/  识别（已实现）：YOLO 四类检测 API + 六色色块工具
-  region/     抓取圈几何：圈换算 / 点在圈内 / 重合面积 / 圈内过滤
-  scoring/    评分选靶：距离 + 颜色(球) + 密集 三因子评分树
+  region/     抓取圈几何（已实现）：对比板查色——圈换算 / 点在圈内
+              （桶可投）/ 重合面积 + 阈值判定（盆可投）/ 圈内过滤
+  scoring/    评分选靶（已实现）：距离+颜色(球)+密集 三因子加权，
+              ScoredTarget 排序列表（最高分先抓，并列编号序）；
+              复用 detection 色块工具与 region 圈换算
   actuator/   执行机构：串口收发 + 回传解析 ActuatorState + 位置解算
               + 舵机角度判定工具（抓取成败/机构异常/脱落三处共用）
 
 协作关系：flow 是唯一编排者——阶段一调 landing + actuator 判稳，
 阶段二调 detection + region，阶段三调 scoring，阶段四/六调 common
 坐标映射与 actuator 收发，G2/G3 监视调 actuator 角度判定工具；
-scoring 的颜色因子复用 detection 的色块工具，除此之外平级模块间
+scoring 复用 detection 色块工具与 region 圈换算，除此之外平级模块间
 不互相调用。与手动链路共用 common/ 下的通用工具。
 
 开发约定（全包通用）：
