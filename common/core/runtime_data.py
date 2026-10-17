@@ -23,6 +23,14 @@ IMU_QUEUE_SIZE = 128
 # 识别结果队列：每项 = 一帧推理的该品类目标列表（调用方按帧放入，防抖/评分取用）
 DETECT_QUEUE_SIZE = 16
 
+# ── 自动链路状态位（四态，检测到对应信号后切换，下游链路按状态启动） ──
+AUTO_STATE_FLYING = "flying"   # 飞行中：等待落地信号（landing 监视中）
+AUTO_STATE_LANDED = "landed"   # 已着陆：落地判定通过，抓取链路待启动
+AUTO_STATE_GRAB = "grab"       # 抓取态：正在执行抓取
+AUTO_STATE_DROP = "drop"       # 投放态：正在执行投放
+AUTO_STATES = (AUTO_STATE_FLYING, AUTO_STATE_LANDED,
+               AUTO_STATE_GRAB, AUTO_STATE_DROP)
+
 
 class RuntimeData:
     """统一运行时数据管理"""
@@ -67,6 +75,19 @@ class RuntimeData:
         # 识别结果队列（detection 的 detect() 结果由调用方按帧放入，非接收线程写）
         self.cube_queue = deque(maxlen=DETECT_QUEUE_SIZE)   # 每项 = 一帧的魔方目标列表
         self.ball_queue = deque(maxlen=DETECT_QUEUE_SIZE)   # 每项 = 一帧的球目标列表
+
+        # ============================================================
+        # 自动链路状态位（检测到对应信号后切换；下游链路按状态启动）
+        # ============================================================
+        self.auto_state: str = AUTO_STATE_FLYING   # 当前状态（set_auto_state 切换）
+
+        # ============================================================
+        # 落地判定结果（landing 监视线程 / 调用方刷新，flow 确认窗取用）
+        # ============================================================
+        self.landing_imu_hit: bool = False                  # 最近一次 IMU 跳变判定（监视线程持续刷新）
+        self.landing_imu_hit_time: float | None = None      # 最近一次判定命中的时刻（帧时间戳）
+        self.landing_frame_still: bool | None = None        # 最近一次光流画面静止判定（调用方按帧喂图后回写）
+        self.receiver_last_time: float | None = None        # 接收机最近一次收到遥控器信号的时刻（读数接入后刷新）
 
     # ──────────────────────── 帧数据 ────────────────────────
 
@@ -122,6 +143,35 @@ class RuntimeData:
         """刷新 IMU 数据最新一帧镜像（时间戳在数据对象的 time 字段里）"""
         self.imu_state = state
 
+    # ──────────────────────── 自动链路状态位 ────────────────────────
+
+    def set_auto_state(self, state: str):
+        """切换自动链路状态位（非法状态抛 ValueError）
+
+        约定：landing 监视检测到落地信号 → 切 landed（接线逻辑后面
+        在 flow 写）；抓取/投放态的切换由 flow 编排。状态切了，下游
+        链路才按状态启动。
+        """
+        if state not in AUTO_STATES:
+            raise ValueError(f"未知自动链路状态: {state!r}，可选: {list(AUTO_STATES)}")
+        self.auto_state = state
+
+    # ──────────────────────── 落地判定结果 ────────────────────────
+
+    def set_landing_imu(self, hit: bool, hit_time: float | None = None):
+        """刷新 IMU 跳变判定结果（landing 监视线程写；未命中不覆盖命中时刻）"""
+        self.landing_imu_hit = hit
+        if hit and hit_time is not None:
+            self.landing_imu_hit_time = hit_time
+
+    def set_landing_frame_still(self, still: bool | None):
+        """刷新光流画面静止判定结果（调用方按帧喂图判定后写）"""
+        self.landing_frame_still = still
+
+    def set_receiver_signal(self, ts: float):
+        """刷新接收机最近信号时刻（接收机读数接入后由其线程写）"""
+        self.receiver_last_time = ts
+
     # ──────────────────────── 全局重置 ────────────────────────
 
     def reset_all(self):
@@ -144,3 +194,9 @@ class RuntimeData:
         self.imu_queue.clear()
         self.cube_queue.clear()
         self.ball_queue.clear()
+
+        self.landing_imu_hit = False
+        self.landing_imu_hit_time = None
+        self.landing_frame_still = None
+        self.receiver_last_time = None
+        self.auto_state = AUTO_STATE_FLYING
