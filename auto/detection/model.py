@@ -4,19 +4,14 @@
 [(类别名, (x1,y1,x2,y2), 置信度), ...]。魔方/球/盆/桶同帧全出，
 整理成"魔方列表 / 球列表 / 盆 / 桶"由 detector.detect 做。
 
-模型权重尚未训练好：MODEL_FILE 为占位文件名，权重放到该路径即可跑通。
+模型权重尚未训练好：权重路径为占位文件名，权重放到该路径即可跑通。
+模型文件与类别名、置信度阈值等参数都在 auto/params.py detection 段。
 """
 import os
 
 from common.core.config import config
 
-# ── 模型配置（权重就位后按实际文件名与类别名改这里） ──────────
-MODEL_FILE = "models/cube_ball.pt"   # 权重路径（相对项目根，占位名）
-CUBE_CLASS_NAME = "cube"             # 权重里魔方的类别名
-BALL_CLASS_NAME = "ball"             # 权重里球的类别名
-BUCKET_CLASS_NAME = "bucket"         # 权重里投放桶的类别名
-PAN_CLASS_NAME = "pan"               # 权重里投放大盆的类别名
-CONF_THRESHOLD = 0.8                 # 置信度阈值：≥0.8 才认定为对应品类
+from auto import params
 
 _model = None  # 进程内缓存的模型实例（懒加载，只加载一次）
 
@@ -30,7 +25,7 @@ def load_model():
         from ultralytics import YOLO
     except ImportError:
         raise RuntimeError("未安装 ultralytics：pip install ultralytics")
-    path = config.resolve_path(MODEL_FILE)
+    path = config.resolve_path(params.DETECT_MODEL_FILE)
     if not os.path.exists(path):
         raise FileNotFoundError(
             f"YOLO 权重不存在: {path}（训练好的权重放到该路径即可）")

@@ -1,7 +1,8 @@
 """通用色块识别工具（OpenCV）：按 BGR 颜色区间在画面里找色块。
 
-只识别六种颜色：黑 / 棕 / 粉 / 蓝 / 黄 / 绿，区间定义在 COLOR_RANGES
-（BGR 下限/上限），现场光照下直接改数值即可调色。
+只识别六种颜色：黑 / 棕 / 粉 / 蓝 / 黄 / 绿，区间定义在
+auto/params.py detection 段的 COLOR_RANGES（BGR 下限/上限），现场
+光照下直接改数值即可调色。
 
 通用函数 API（无状态、按需调用），两个用途共用：
   - 不同颜色的球：球 ROI 内判主色（评分颜色因子用）
@@ -14,18 +15,9 @@ from dataclasses import dataclass, asdict
 import cv2
 import numpy as np
 
-# ── BGR 颜色区间 (lower, upper)：初始参考值，现场光照下直接改这里 ──
-COLOR_RANGES = {
-    '黑': ((0, 0, 0),      (70, 70, 70)),
-    '棕': ((0, 30, 80),    (90, 110, 190)),
-    '粉': ((110, 90, 180), (230, 200, 255)),
-    '蓝': ((150, 0, 0),    (255, 180, 100)),
-    '黄': ((0, 150, 150),  (120, 255, 255)),
-    '绿': ((0, 120, 0),    (120, 255, 120)),
-}
-COLOR_NAMES = ('黑', '棕', '粉', '蓝', '黄', '绿')
+from auto import params
 
-# 形态学核尺寸（开运算去噪点 / 闭运算补空洞）
+# 形态学核尺寸（开运算去噪点 / 闭运算补空洞，算法内部参数）
 _MORPH_KERNEL_SIZE = (5, 5)
 
 
@@ -45,16 +37,17 @@ class ColorBlob:
 def find_color_blobs(frame, color: str, min_area: int = 500) -> list[ColorBlob]:
     """在一帧里找指定颜色的色块，按面积从大到小返回（大块更可信）
 
-    frame: OpenCV BGR 帧；color: COLOR_RANGES 里的颜色名；
+    frame: OpenCV BGR 帧；color: params.COLOR_RANGES 里的颜色名；
     min_area: 面积门槛（像素²），小于它的碎块丢弃。
     frame 为 None（帧缺失）时返回空列表。
     """
-    if color not in COLOR_RANGES:
-        raise ValueError(f"未知颜色 '{color}'，可选：{list(COLOR_RANGES)}")
+    if color not in params.COLOR_RANGES:
+        raise ValueError(f"未知颜色 '{color}'，可选：{list(params.COLOR_RANGES)}")
     if frame is None:
         return []
 
-    lower, upper = (np.array(v, dtype=np.uint8) for v in COLOR_RANGES[color])
+    lower, upper = (np.array(v, dtype=np.uint8)
+                    for v in params.COLOR_RANGES[color])
     mask = cv2.inRange(frame, lower, upper)
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, _MORPH_KERNEL_SIZE)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
@@ -89,7 +82,7 @@ def dominant_color(frame, bbox: tuple[int, int, int, int] | None = None,
         if frame.size == 0:
             return None
     best, best_area = None, 0.0
-    for name in COLOR_NAMES:
+    for name in params.COLOR_NAMES:
         area = sum(b.area for b in find_color_blobs(frame, name, min_area))
         if area > best_area:
             best, best_area = name, area
