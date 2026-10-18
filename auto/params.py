@@ -84,6 +84,14 @@ GRAB_SERVO_CUBE_MIN = 1600     # 抓魔方状况角度范围（魔方大、角�
 GRAB_SERVO_CUBE_MAX = 2400
 
 # ══════════════════════ flow 流程编排 ══════════════════════
-FLOW_LOOP_INTERVAL = 0.05      # 状态监视/相机取帧线程轮询间隔（秒）
-FLOW_IMU_HIT_FRESH = 3.0       # 落地触发新鲜度窗口（秒）：只认窗口内的 IMU 冲击，
+FLOW_LOOP_INTERVAL = 0.05      # 大循环轮询/相机取帧线程间隔（秒）
+RECEIVER_POLL_INTERVAL = 0.05  # 接收机判飞行线程轮询间隔（秒，占位）
+MECH_QUEUE_LEN = 20            # 机构监视历史队列长 = 过程态窗长（占位）
+MECH_SAMPLE_INTERVAL = 0.05    # 机构监视采样间隔（秒，0.05~0.1 及时响应，占位）
+YOLO_TASK_INTERVAL = 0.5       # YOLO 任务判定推理间隔（秒，树莓派上控制占用，占位）
+GRAB_VERIFY_TIMEOUT = 5.0      # 抓取指令发出→等机构夹住的验证窗（秒，占位）
+GRAB_FAIL_MAX = 3              # 同一轮连续抓取失败上限（超过提示人工重飞）
+CUBE_DONE_MAX = 15             # 魔方投完 15 个 → 任务完成
+BALL_DONE_MAX = 6              # 球投完 6 个 → 后续轮次全抓魔方
+FLOW_IMU_HIT_FRESH = 3.0       # 落地触发新鲜度窗口（秒）：IMU 备选源启用时用，
                                # 起飞等旧冲击超窗自然过滤（下一次落地必有新冲击）

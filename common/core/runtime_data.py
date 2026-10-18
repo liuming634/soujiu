@@ -31,6 +31,19 @@ AUTO_STATE_DROP = "drop"       # 投放态：正在执行投放
 AUTO_STATES = (AUTO_STATE_FLYING, AUTO_STATE_LANDED,
                AUTO_STATE_GRAB, AUTO_STATE_DROP)
 
+# ── 自动链路两层状态 + 任务记账（2026-10-18 重构：监视线程直改，大循环只读） ──
+AUTO_FLYING = "flying"          # 层1 飞行状况：飞行中（接收机判飞行线程直改）
+AUTO_LANDED = "landed"          # 层1 飞行状况：已落地
+MECH_IDLE = "idle"              # 层2 机构状况：静止（空爪常态，没抓东西没做任务）
+MECH_HOLD = "hold"              # 层2 机构状况：抓取（夹着魔方或球）
+MECH_PROCESS = "process"        # 层2 机构状况：过程（夹着→空的转变，脱落/松开）
+TASK_GRAB_CUBE = "grab_cube"    # yolo_task：识别到魔方 → 抓魔方任务
+TASK_GRAB_BALL = "grab_ball"    # yolo_task：识别到球 → 抓球任务
+TASK_DROP_CUBE = "drop_cube"    # yolo_task：识别到盆（可投）→ 投放魔方任务
+TASK_DROP_BALL = "drop_ball"    # yolo_task：识别到桶（可投）→ 投放球任务
+MEMO_GRAB_SENT = "grab_sent"    # task_memo：抓取指令已发、等机构夹住验证
+MEMO_DROP_SENT = "drop_sent"    # task_memo：投放指令已发、等机构松开
+
 # ── 抓取机构实时状况（状态监视线程按舵机角度判定，全程刷新） ──
 GRABBER_HOLDING_CUBE = "cube"   # 夹着魔方（取值同 auto/params.DETECT_CUBE_CLASS）
 GRABBER_HOLDING_BALL = "ball"   # 夹着球（取值同 auto/params.DETECT_BALL_CLASS）
@@ -93,6 +106,19 @@ class RuntimeData:
         # 流程记账标记互相独立：飞行中掉落 = 标记还在 + 实时判定变空爪）
         # 取值 GRABBER_HOLDING_CUBE / GRABBER_HOLDING_BALL / GRABBER_EMPTY / None
         self.auto_grabber_status: str | None = None
+
+        # ── 两层状态 + 任务记账（监视线程直改 / 大循环读写，2026-10-18 重构） ──
+        self.auto_flight_state: str = AUTO_FLYING  # 层1 飞行状况（接收机判飞行线程直改）
+        self.auto_mech_state: str = MECH_IDLE      # 层2 机构状况（机构监视线程直改）
+        self.yolo_task: str | None = None          # YOLO 任务判定线程直改（TASK_*）
+        self.task_memo: str | None = None          # 指令已发待验证（MEMO_*）
+        self.task_memo_time: float = 0.0           # 指令发出时刻（验证超时用）
+        self.grab_fail_cnt: int = 0                # 本轮连续抓取失败次数
+        self.process_handled: bool = False         # process 事件一次性处理标记
+        self.parity_flip: bool = False             # 掉落翻转位：掉落 N+1 且翻转奇偶映射
+        self.N: int = 0                            # 抓取任务计数（从 0 计，偶魔方奇球）
+        self.cube_done: int = 0                    # 魔方投放完成数
+        self.ball_done: int = 0                    # 球投放完成数
 
         # ============================================================
         # 落地判定结果（landing 监视线程 / 调用方刷新，flow 确认窗取用）
@@ -224,3 +250,14 @@ class RuntimeData:
         self.auto_state = AUTO_STATE_FLYING
         self.auto_grabbed = None
         self.auto_grabber_status = None
+        self.auto_flight_state = AUTO_FLYING
+        self.auto_mech_state = MECH_IDLE
+        self.yolo_task = None
+        self.task_memo = None
+        self.task_memo_time = 0.0
+        self.grab_fail_cnt = 0
+        self.process_handled = False
+        self.parity_flip = False
+        self.N = 0
+        self.cube_done = 0
+        self.ball_done = 0
