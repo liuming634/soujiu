@@ -1,7 +1,9 @@
-"""落地判定源一：IMU 数据跳变检测（触地冲击触发，§1.4 主判据）。
+"""落地判定源一：IMU 数据跳变检测（触地冲击触发，§1.4）。
 
-【当前主判据】落地判定暂时以本源为准，光流/接收机为备用源，后续
-再融合。输入是 actuator 接收线程放进 RuntimeData.imu_queue /
+【并列备选源】2026-10-18 口述定稿：层1 飞行/落地主判据 = 接收机
+（flow._receiver_flight_loop 直改 auto_flight_state），本源与光流
+同为并列备选，融合启用时由各自监视线程直改同一状态量。输入是
+actuator 接收线程放进 RuntimeData.imu_queue /
 imu_state 的 ImuData（auto/actuator/state.py），本模块只做判定函数：
 跳变 = 相邻两帧读数之差的合矢量落进可调区间（区间在 auto/params.py
 landing 段，随时可调）。触地冲击必现加速度尖峰，角速度尖峰为伴随

@@ -22,6 +22,12 @@
 
 状态量与记账字段在 RuntimeData（两层状态 / yolo_task / task_memo /
 计数 N 等），可调参数在 auto/params.py 的 flow 段。
+
+调度形态备选（等价实现路径，未采用）：本结构可用行为树（py_trees，
+纯 Python、树莓派可用）等价实现——两层状态量与 yolo_task / task_memo
+充当黑板（blackboard），六情况各做一个动作叶子节点，Selector 按优先级
+表达第一层分发、Sequence 表达层内顺序（等落地 → 判任务 → 执行）。
+行为树版建议单独开分支实现，监视线程与大循环骨架可原样复用。
 """
 import threading
 import time
@@ -52,11 +58,16 @@ from auto.scoring.scorer import score_cubes, score_balls
 def _receiver_flight_loop(data: RuntimeData, running: threading.Event) -> None:
     """层1 飞行状况监视线程（主源 = 接收机）：直改 auto_flight_state
 
-    收到遥控器信号 = flying；没收到 = landed。与 IMU 判定（landing
-    监视线程）、图像光流判定并列——三者同形态：监视线程持续判定、直改
-    同一个状态量，换主源 = 换线程，大循环与字段不动。
+    收到遥控器信号 = flying；没收到 = landed。三个判定源并列——三者
+    同形态：监视线程持续判定、直改同一个状态量，换主源 = 换线程，
+    大循环与字段零改动：
+      主源   接收机（本线程）——飞行中人工持续操作 → 有信号；落地后
+             人工基本不再操作 → 超时无信号（伪代码 §1.4）
+      备选1  IMU 落地冲击：check_imu_impact + start_landing_monitor
+             （监视线程已在跑，结果在 landing_imu_hit / _time）
+      备选2  图像光流画面静止：check_frame_still（接口已留，按帧喂图）
     TODO(电控)：接收机数据源未接入，_receiver_signal_active 占位恒 False
-    （恒判落地）；接入后按口径（链路在线 / 通道值变化）实现。
+    （恒判落地）；接入后按口径（见该函数注释三选一）实现。
     """
     while running.is_set():
         data.auto_flight_state = (AUTO_FLYING if _receiver_signal_active(data)
@@ -68,7 +79,11 @@ def _receiver_signal_active(data: RuntimeData) -> bool:
     """接收机信号判定（占位）：数据源待电控接入，接入前恒判没信号（落地）
 
     参考口径（伪代码 §1.4）：落地后人工基本不再操作遥控器 → 超时收不到
-    信号即判落地；可用 data.receiver_last_time（读数线程刷新）做超时口径。
+    信号即判落地。判定口径三选一（待电控/实测定）：
+      a) 链路在线：收得到遥控器帧即算有信号（最简单）；
+      b) 通道值有变化：落地后人工不动杆，通道读数长时间不变判落地；
+      c) 超时口径：用 data.receiver_last_time（读数线程刷新）判
+         "超过 RECEIVER_LOST_TIMEOUT 收不到信号"。
     """
     return False
 
@@ -81,6 +96,12 @@ def _mech_monitor_loop(data: RuntimeData, running: threading.Event) -> None:
     夹着(hold)→空了(idle) 的转变 = process（老样本滑出队列自然退回
     idle，过程窗长 = 队列长）。瞬时角度分档用 judge_grabber（角度范围
     params.GRAB_SERVO_*，占位待标定）；运动中 None 样本维持原状态。
+
+    判定方法备选（§6.6，脱落检测本体）：当前 = 思路 A 角度越界法
+    （纯角度回读、无额外硬件，本线程实现）；备选 = 思路 B 负载/电流
+    回读法（取决于总线舵机型号是否支持回读，可用则响应更直接）——
+    接口形态不变，只换本线程里的判定函数。采样口径来源：口述定稿
+    不做单帧动态判定，静态数据靠长队列的数据量判定。
     """
     queue = deque(maxlen=params.MECH_QUEUE_LEN)
     while running.is_set():
@@ -111,6 +132,11 @@ def _yolo_task_loop(data: RuntimeData, running: threading.Event) -> None:
     可投）/ 投放球（桶可投）；没识别出任务 → None。只被大循环落地链路
     消费（飞行状态不走 YOLO 链路，执行动作都在落地后做）。模型懒加载
     （首次推理自动 load_model），权重未就位时提示一次并保持空结果。
+
+    实现路径备选（口述留口）：可不建本线程——在大循环落地分支里直接
+    对 detect 结果叠 if 多条件判定（等价，只是嵌套层数多一层）；线程
+    形态的好处是大循环保持"只读状态量"。留口选项：任务判定嵌在第三层
+    还是第四层、要不要只在落地状态跑推理（省性能）。
     """
     warn_shown = False
     while running.is_set():
@@ -195,6 +221,9 @@ def _send_grab_command(data: RuntimeData, plane) -> bool:
     TODO(电控)：X/Y/N/RX 在抓取动作里的语义（发什么值代表"到这个坐标
     抓取"、单发还是连发）——定稿后在这里组帧（走 flow 持有的 SerialComm.
     send_data，米→毫米换算参考 InteractionManager）。框架阶段只打印占位。
+    发送 API 备选（common 现成两档）：send_data（单发）/
+    send_data_repeat（duration 秒内按间隔连发，cancel_event 可中断）
+    ——单发还是连发待电控定口径后选。
     """
     if plane is None:
         print("[flow] 坐标换算失败，未发抓取指令")
@@ -207,7 +236,8 @@ def _send_drop_command(data: RuntimeData) -> bool:
     """发投放指令
 
     TODO(电控)：投放指令的协议语义（发什么值代表"投放"、单发还是连发）
-    ——定稿后在这里组帧。框架阶段只打印占位。
+    ——定稿后在这里组帧。框架阶段只打印占位。发送 API 备选同
+    _send_grab_command：send_data 单发 / send_data_repeat 连发。
     """
     print("[flow] 发投放指令（占位）")
     return True
