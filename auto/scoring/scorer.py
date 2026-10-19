@@ -68,7 +68,8 @@ def score_cubes(cubes: list[RoiTarget], frame,
                 all_cubes: list[RoiTarget] | None = None) -> list[ScoredTarget] | None:
     """魔方评分：距离 + 密集加权（权重 params.SCORE_WEIGHT_CUBE_*）
 
-    cubes = 阶段二输出的圈内候选（评分对象）；all_cubes = 本轮品类
+    cubes = 圈内候选（filter_grabbable 过滤后的目标，评分对象）；
+    all_cubes = 本轮品类
     全部识别目标（密集统计用，**含抓取圈外的**，缺省 = 只数 cubes
     自身）。三态：ScoredTarget 列表按分数从高到低 / [] 列表为空
     （没东西可评）/ None 帧缺失无法判定。

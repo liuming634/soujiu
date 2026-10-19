@@ -12,8 +12,7 @@ landing 段。
 RuntimeData.receiver_last_time（最近一次收到信号的时刻，
 RuntimeData.set_receiver_signal）；本模块只做判定函数。
 
-注意：伪代码 §1.4 旧口径是"通道值不变"，现按最新口径改为
-"收不到信号"，判据以本文件为准。
+注意：早期口径是"通道值不变"，现按"收不到信号"判，判据以本文件为准。
 """
 import time
 

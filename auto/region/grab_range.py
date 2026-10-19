@@ -50,7 +50,7 @@ def _range_mask(w: int, h: int) -> np.ndarray:
 def point_in_range(x: int, y: int, frame) -> bool | None:
     """判定一个像素点是否在抓取圈内（对比板查色：黑 = 在圈内）
 
-    用于阶段六桶可投判定（桶 ROI 中点在圈内，§6.2）。
+    用于桶可投判定（桶 ROI 中点在圈内）。
     frame 只用尺寸生成对比板；点坐标越界按边界夹取。
     三态：True 在圈内 / False 在圈外 / None 帧缺失无法判定。
     """
@@ -65,7 +65,7 @@ def point_in_range(x: int, y: int, frame) -> bool | None:
 def overlap_px(roi: tuple[int, int, int, int], frame) -> int | None:
     """矩形 ROI 与抓取圈的重合像素数（对比板裁剪 ROI 区域统计黑像素）
 
-    用于阶段六盆可投判定（§6.2：重合面积 ≥ 阈值即判可投），阈值判断
+    用于盆可投判定（重合面积 ≥ 阈值即判可投），阈值判断
     配合 overlap_ok 用。roi: (x1, y1, x2, y2)；越界部分自动裁剪到
     画面内。
     三态：像素数 ≥ 0 / None 帧缺失无法判定（ROI 裁剪后无效算 0）。
@@ -97,7 +97,7 @@ def overlap_ok(roi: tuple[int, int, int, int], frame) -> bool | None:
 
 def filter_grabbable(objects: list[RoiTarget],
                      frame) -> list[RoiTarget] | None:
-    """圈内过滤：只保留 ROI 中点在抓取圈内的对象（阶段二可抓判定用）
+    """圈内过滤：只保留 ROI 中点在抓取圈内的对象（抓取链路可抓判定用）
 
     不在圈内的不作为评分候选；返回新列表，不修改原列表。
     三态：过滤后的列表 / None 帧缺失无法判定。

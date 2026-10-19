@@ -9,8 +9,9 @@
 
 状态监视线程（flow）全程轮询调用，结果写 RuntimeData.auto_grabber_status，
 供流程逻辑判"抓着东西飞 / 空着飞 / 飞行中掉落"等状况。掉落判定材料：
-上一刻 'cube'/'ball'、这一刻 'empty' = 物品脱落（§6.6 思路 A：爪瓣
-失去阻力、舵机落回静止位；组合与场景处理在 flow 的树状逻辑里做，
+上一刻 'cube'/'ball'、这一刻 'empty' = 物品脱落（思路 A：爪瓣失去
+阻力、舵机落回静止位；两思路与三个掉落场景的处理见
+docs/扩展功能技术路线.md；组合与场景处理在 flow 大循环里做，
 本模块只出单点判定）。
 
 角度范围参数在 auto/params.py actuator 段（GRAB_SERVO_*，占位示意

@@ -8,7 +8,7 @@
   1. STM32 回传接收（复用 auto/actuator：start_receiving）——0x02 机构
      状态帧 → actuator_state 镜像，0x03 IMU 帧 → imu_state 镜像
   2. 接收机判飞行线程 _receiver_flight_loop —— 层1 auto_flight_state
-     （主源 = 接收机；与 IMU / 图像光流判定并列，同形态换源）
+      （主源 = 接收机；与 IMU / 图像光流判定并列，同形态换源）
   3. 机构监视线程 _mech_monitor_loop —— 层2 auto_mech_state（低频采样
      入长队列，收样当场判，抓/放角度差大可直接判脱落）
   4. YOLO 任务判定线程 _yolo_task_loop —— yolo_task（识别结果直接定
@@ -62,7 +62,8 @@ def _receiver_flight_loop(data: RuntimeData, running: threading.Event) -> None:
     同形态：监视线程持续判定、直改同一个状态量，换主源 = 换线程，
     大循环与字段零改动：
       主源   接收机（本线程）——飞行中人工持续操作 → 有信号；落地后
-             人工基本不再操作 → 超时无信号（伪代码 §1.4）
+             人工基本不再操作 → 超时无信号（详见 docs/自动抓取技术实现.md、
+             docs/扩展功能技术路线.md）
       备选1  IMU 落地冲击：check_imu_impact + start_landing_monitor
              （监视线程已在跑，结果在 landing_imu_hit / _time）
       备选2  图像光流画面静止：check_frame_still（接口已留，按帧喂图）
@@ -78,8 +79,9 @@ def _receiver_flight_loop(data: RuntimeData, running: threading.Event) -> None:
 def _receiver_signal_active(data: RuntimeData) -> bool:
     """接收机信号判定（占位）：数据源待电控接入，接入前恒判没信号（落地）
 
-    参考口径（伪代码 §1.4）：落地后人工基本不再操作遥控器 → 超时收不到
-    信号即判落地。判定口径三选一（待电控/实测定）：
+    参考口径：落地后人工基本不再操作遥控器 → 超时收不到
+    信号即判落地（详见 docs/扩展功能技术路线.md）。判定口径三选一
+    （待电控/实测定）：
       a) 链路在线：收得到遥控器帧即算有信号（最简单）；
       b) 通道值有变化：落地后人工不动杆，通道读数长时间不变判落地；
       c) 超时口径：用 data.receiver_last_time（读数线程刷新）判
@@ -97,7 +99,8 @@ def _mech_monitor_loop(data: RuntimeData, running: threading.Event) -> None:
     idle，过程窗长 = 队列长）。瞬时角度分档用 judge_grabber（角度范围
     params.GRAB_SERVO_*，占位待标定）；运动中 None 样本维持原状态。
 
-    判定方法备选（§6.6，脱落检测本体）：当前 = 思路 A 角度越界法
+    判定方法备选（脱落检测本体，详见 docs/扩展功能技术路线.md）：
+    当前 = 思路 A 角度越界法
     （纯角度回读、无额外硬件，本线程实现）；备选 = 思路 B 负载/电流
     回读法（取决于总线舵机型号是否支持回读，可用则响应更直接）——
     接口形态不变，只换本线程里的判定函数。采样口径来源：口述定稿

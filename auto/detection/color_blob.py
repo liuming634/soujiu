@@ -7,7 +7,8 @@ auto/params.py detection 段的 COLOR_RANGES（BGR 下限/上限），现场
 通用函数 API（无状态、按需调用），两个用途共用：
   - 不同颜色的球：球 ROI 内判主色（评分颜色因子用）
   - 桶底颜色：第一次投放后识别各桶底颜色，建"颜色 ↔ 桶"映射
-    （伪代码 §6.7 例外任务，球按颜色投对应桶）
+    （例外任务：第一次投放后建颜色↔桶映射，球按颜色投对应桶，
+    路径见 docs/扩展功能技术路线.md）
 输入帧为 OpenCV BGR 格式。
 """
 from dataclasses import dataclass, asdict
