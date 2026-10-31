@@ -2,7 +2,7 @@ camera_fourcc: MJPG
 camera_fps: 30
 camera_height: 1080
 camera_hflip: false
-camera_id: 0
+camera_id: 1
 camera_matrix_file: calibration_data/camera_matrix.npy
 camera_source: usb
 camera_vflip: false
@@ -13,14 +13,14 @@ coordinate_offset: 5000
 coordinate_scale: 1000
 dist_coeffs_file: calibration_data/dist_coeffs.npy
 fps_display: true
-grab_range_radius_ratio: 0.334375
-grab_range_x_ratio: 0.4630208333333333
-grab_range_y_ratio: 0.706
+grab_range_radius_ratio: 0.32916666666666666
+grab_range_x_ratio: 0.4979166666666667
+grab_range_y_ratio: 0.6240740740740741
 grid_crop_ratio: 1.0
 gui_mode: '6'
 homography_file: calibration_data/homography.npy
 serial_baudrate: 9600
-serial_port: /dev/ttyUSB0
+serial_port: COM10
 serial_prefix: 4660
 serial_send_duration: 0.2
 serial_send_interval: 0.01
